@@ -1,0 +1,22 @@
+==============================================================
+Smart Attendance System - Live Credentials & URLs
+==============================================================
+
+Live Web Dashboard:
+https://smart-attendance-api-zaoh.onrender.com/
+
+Health Check:
+https://smart-attendance-api-zaoh.onrender.com/api/health
+
+Faculty Admin Login:
+Username: admin
+Password: admin123
+
+Enrolled Student Credentials:
+- STUD2026       bharathan       student123
+- ITI2026        Vasan           student123
+- Stu-123        Vasanth         student123
+- STU-2026-TEST  Jordan Miller   student123
+
+Expo Go Tunnel Command:
+Run 'run_mobile_tunnel.bat' or 'npx expo start --tunnel -c' inside attendance-project/mobile_app_rn
