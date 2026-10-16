@@ -20,7 +20,6 @@ export default function CheckInScreen({
   nearestZone,
   scheduleInfo,
   onRefreshSchedule,
-  onSimulateTime,
   currentUser,
   userRole,
   students,
@@ -118,52 +117,6 @@ export default function CheckInScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      {/* 🧪 Testing Simulator Controls */}
-      <View style={styles.simulatorCard}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={styles.simulatorTitle}>🧪 TESTING SIMULATOR</Text>
-          {scheduleInfo?.simulated_time ? (
-            <View style={styles.simActiveBadge}>
-              <Text style={styles.simActiveText}>Simulated: {scheduleInfo.simulated_time}</Text>
-            </View>
-          ) : (
-            <Text style={{ color: COLORS.textDim, fontSize: 10 }}>Live System Clock</Text>
-          )}
-        </View>
-        <Text style={styles.simulatorDesc}>Tap any state below to test how the app behaves:</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-          <TouchableOpacity
-            style={[styles.simBtn, styles.simBtnRed]}
-            onPress={() => onSimulateTime && onSimulateTime('09:45')}>
-            <Text style={styles.simBtnText}>🔴 Lockout (&gt;30m late)</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.simBtn, styles.simBtnAmber]}
-            onPress={() => onSimulateTime && onSimulateTime('09:20')}>
-            <Text style={styles.simBtnText}>🟡 Late (20m late)</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.simBtn, styles.simBtnGreen]}
-            onPress={() => onSimulateTime && onSimulateTime('09:05')}>
-            <Text style={styles.simBtnText}>🟢 On-Time (09:05)</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.simBtn, styles.simBtnBlue]}
-            onPress={() => onSimulateTime && onSimulateTime('13:30')}>
-            <Text style={styles.simBtnText}>☕ Lunch Break (1-2 PM)</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.simBtn, styles.simBtnReset]}
-            onPress={() => onSimulateTime && onSimulateTime(null)}>
-            <Text style={[styles.simBtnText, { color: '#fff' }]}>🕒 Real Clock</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-
       {/* 5-Minute Pre-Class Alert Banner */}
       {alert5Min && (
         <View style={styles.preClassAlert}>

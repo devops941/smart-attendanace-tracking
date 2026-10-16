@@ -114,11 +114,6 @@ export default function StudentsScreen({
           </TouchableOpacity>
         </View>
 
-        {/* Sample Face Helper for Instant Testing */}
-        <TouchableOpacity style={styles.sampleFaceBtn} onPress={onUseSamplePhoto}>
-          <Text style={{ color: COLORS.textMuted, fontSize: 11.5 }}>⚡ Or test with sample verified face</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.mainButton} onPress={onRegister} disabled={isRegistering}>
           {isRegistering ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

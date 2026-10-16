@@ -587,7 +587,6 @@ export default function App() {
             nearestZone={nearestZone}
             scheduleInfo={scheduleInfo}
             onRefreshSchedule={() => refreshBackendData()}
-            onSimulateTime={handleSimulateTime}
             currentUser={currentUser}
             userRole={userRole}
             students={students}
