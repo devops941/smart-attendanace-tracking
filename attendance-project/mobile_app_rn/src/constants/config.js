@@ -6,12 +6,13 @@ export const PREF_AUTH_TOKEN = 'smart_attendance_rn_auth_token';
 export const PREF_USER_ROLE = 'smart_attendance_rn_user_role';
 export const PREF_USER_INFO = 'smart_attendance_rn_user_info';
 
-// Default backend URL (PC Wi-Fi IP)
-export const DEFAULT_URL = 'http://10.165.124.96:8000';
+// Default backend URL (Live Render Cloud URL)
+export const DEFAULT_URL = 'https://smart-attendance-api-zaoh.onrender.com';
 
 export const IP_PRESETS = [
+  { label: '☁️ Render Cloud', url: 'https://smart-attendance-api-zaoh.onrender.com', color: '#10B981' },
   { label: '⚡ Wi-Fi: 10.165.124.96', url: 'http://10.165.124.96:8000', color: '#06B6D4' },
-  { label: '💻 Localhost (Web)', url: 'http://localhost:8000', color: '#10B981' },
+  { label: '💻 Localhost (Web)', url: 'http://localhost:8000', color: '#38BDF8' },
   { label: '📱 Emulator (10.0.2.2)', url: 'http://10.0.2.2:8000', color: '#94A3B8' },
 ];
 
