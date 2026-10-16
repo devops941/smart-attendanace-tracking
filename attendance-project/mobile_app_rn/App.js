@@ -557,6 +557,7 @@ export default function App() {
           serverUrl={serverUrl}
           setServerUrl={setServerUrl}
           onLoginSuccess={handleLoginSuccess}
+          deviceId={deviceId}
         />
       </SafeAreaView>
     );
@@ -597,6 +598,8 @@ export default function App() {
             }}
             onVerify={handleSubmitCheckIn}
             isVerifying={isVerifying}
+            onSyncLocation={handleSyncCurrentLocationToZone}
+            isSyncingZone={isSyncingZone}
           />
         )}
 

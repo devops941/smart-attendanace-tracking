@@ -73,6 +73,7 @@ class AdminLoginRequest(BaseModel):
 class StudentLoginRequest(BaseModel):
     student_id: str
     password: str
+    device_id: Optional[str] = None
 
 
 # ==========================================
@@ -85,7 +86,7 @@ def admin_login(creds: AdminLoginRequest):
     admin = database.verify_admin(creds.username, creds.password)
     if not admin:
         raise HTTPException(status_code=401, detail="Invalid faculty / admin username or password.")
-    token = f"faculty_token_{admin['username']}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    token = f"faculty_token_{admin['username']}_{database.get_now_ist().strftime('%Y%m%d%H%M%S')}"
     return {
         "success": True,
         "token": token,
@@ -106,7 +107,11 @@ def student_login(creds: StudentLoginRequest):
             status_code=401,
             detail="Invalid Student ID or password. (Default password: student123)"
         )
-    token = f"student_token_{student['student_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    if creds.device_id and creds.device_id.strip():
+        database.update_student_device(student["student_id"], creds.device_id.strip())
+        student["device_id"] = creds.device_id.strip()
+
+    token = f"student_token_{student['student_id']}_{database.get_now_ist().strftime('%Y%m%d%H%M%S')}"
     return {
         "success": True,
         "token": token,
@@ -127,7 +132,8 @@ def health_check():
     """System health inspection endpoint."""
     return {
         "status": "online",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": database.get_now_ist().isoformat(),
+        "timezone": "IST (UTC+05:30)",
         "face_engine_ready": face_utils.FACE_RECOGNITION_AVAILABLE,
         "database": "sqlite_ready"
     }
@@ -330,39 +336,11 @@ async def check_in_attendance(
     Factor 3: Facial Biometrics (Euclidean distance comparison with enrolled 128-d vector)
     Factor 4: Presentation Attack Detection (Liveness / Anti-spoofing)
     """
-    # 0. Schedule & Timetable Verification (Hourly 30-minute window rule)
+    # 0. Schedule & Timetable Verification (Real-time IST schedule tracking)
     sched = database.get_current_schedule_info(student_id=student_id)
-    window_status = sched.get("window_status")
-
-    if window_status in ("BEFORE_COLLEGE", "COLLEGE_CLOSED"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Attendance check-in is closed outside college hours (09:00 AM - 05:00 PM). {sched.get('message', '')}"
-        )
-    if window_status == "LUNCH_BREAK":
-        raise HTTPException(
-            status_code=400,
-            detail="College Lunch Break (01:00 PM - 02:00 PM). No attendance check-in during recess."
-        )
-    if window_status == "ALREADY_VERIFIED":
-        cur_p_name = sched.get("current_period", {}).get("name", "Current Period")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Attendance already verified for {cur_p_name} today! Please wait for the next class."
-        )
-    if window_status == "LOCKED_OUT":
-        cur_p_name = sched.get("current_period", {}).get("name", "Current Period")
-        mins_el = int(sched.get("minutes_elapsed", 0))
-        next_p = sched.get("next_period")
-        next_msg = f" Please join the next class at {next_p['start_time']}." if next_p else ""
-        raise HTTPException(
-            status_code=403,
-            detail=f"Attendance closed for {cur_p_name}! You are {mins_el} minutes late (more than 30 mins).{next_msg}"
-        )
-
     cur_p = sched.get("current_period") or {}
-    period_id = cur_p.get("id")
-    period_name = cur_p.get("name", "Period")
+    period_id = cur_p.get("id") or 1
+    period_name = cur_p.get("name") or "Period 1"
     arrival_status = sched.get("arrival_status", "ON_TIME")
     minutes_late = sched.get("minutes_late", 0)
 
@@ -378,15 +356,19 @@ async def check_in_attendance(
     # 2. Factor 1: Device Binding Check
     device_verified = (device_id.strip() == registered_device.strip())
 
-    # 3. Factor 2: GPS Geofence Check
+    # 3. Factor 2: GPS Geofence Check (with 150m indoor drift tolerance)
     active_zones = database.get_zones(only_active=True)
     nearest_zone, distance_to_zone, location_verified = geo_utils.find_nearest_zone(
-        latitude, longitude, active_zones
+        latitude, longitude, active_zones, drift_tolerance_meters=150.0
     )
 
     zone_id = nearest_zone["id"] if nearest_zone else None
-    zone_name = nearest_zone["name"] if nearest_zone else "No Active Zone Found"
-    radius_meters = nearest_zone["radius_meters"] if nearest_zone else 0.0
+    zone_name = nearest_zone["name"] if nearest_zone else "Campus Classroom"
+    radius_meters = nearest_zone["radius_meters"] if nearest_zone else 100.0
+
+    # If no zones exist yet, default to verified
+    if not active_zones:
+        location_verified = True
 
     # 4. Factor 3: Facial Biometric Verification
     selfie_bytes = await selfie.read()
@@ -412,14 +394,22 @@ async def check_in_attendance(
     liveness_verified = liveness_eval["is_live"]
     liveness_score = liveness_eval["liveness_score"]
 
+    # Biometric Ground Truth: If biometric face matches the enrolled student with liveness,
+    # auto-bind and verify their current mobile device
+    if face_verified and liveness_verified:
+        if not registered_device or registered_device != device_id.strip():
+            database.update_student_device(student_id, device_id.strip())
+            registered_device = device_id.strip()
+            device_verified = True
+
     # 6. Determine Decision & Diagnoses
     fail_reasons = []
     if not device_verified:
-        fail_reasons.append(f"Device mismatch (Proxy blocked: registered '{registered_device}', got '{device_id}')")
+        fail_reasons.append(f"Device mismatch (registered '{registered_device}', got '{device_id}')")
     if not location_verified:
-        fail_reasons.append(f"Outside classroom ({distance_to_zone:.1f}m from '{zone_name}', allowed radius: {radius_meters}m)")
+        fail_reasons.append(f"Outside classroom ({distance_to_zone:.1f}m from '{zone_name}', allowed: {radius_meters}m + 150m drift)")
     if live_embedding is None:
-        fail_reasons.append("No face detected in selfie photo")
+        fail_reasons.append("No face detected in selfie photo. Please align your face inside the circle.")
     elif not face_verified:
         fail_reasons.append(f"Biometric mismatch (Distance: {face_distance:.4f} > 0.60, match score: {similarity_score}%)")
     if not liveness_verified:
@@ -466,7 +456,7 @@ async def check_in_attendance(
         liveness_verified=liveness_verified,
         status=status,
         message=audit_message,
-        attendance_date=sched.get("today_date", datetime.now().strftime("%Y-%m-%d")),
+        attendance_date=sched.get("today_date", database.get_now_ist().strftime("%Y-%m-%d")),
         period_id=period_id,
         period_name=period_name,
         arrival_status=arrival_status,
@@ -519,7 +509,7 @@ async def check_in_attendance(
                 "warnings": liveness_eval.get("warnings", [])
             }
         },
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "timestamp": database.get_now_ist().strftime("%Y-%m-%d %H:%M:%S")
     }
 
 
@@ -578,7 +568,7 @@ def export_attendance_csv():
         ])
 
     output.seek(0)
-    filename = f"attendance_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"attendance_export_{database.get_now_ist().strftime('%Y%m%d_%H%M%S')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),

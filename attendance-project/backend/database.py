@@ -8,8 +8,15 @@ are stored in serialized format after explicit registration.
 import sqlite3
 import os
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
+
+# Indian Standard Time (IST: UTC+05:30)
+IST_TZ = timezone(timedelta(hours=5, minutes=30))
+
+def get_now_ist() -> datetime:
+    """Returns the current real time in Indian Standard Time (IST: UTC+05:30)."""
+    return datetime.now(IST_TZ).replace(tzinfo=None)
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "attendance.db")
 
@@ -266,6 +273,15 @@ def get_student(student_id: str) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
+def update_student_device(student_id: str, device_id: str) -> bool:
+    """Updates and binds the student's hardware device ID."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE students SET device_id = ? WHERE student_id = ?", (device_id.strip(), student_id.strip()))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 def list_students() -> List[Dict[str, Any]]:
     """Returns list of all students without embedding vectors to conserve payload."""
     with get_db_connection() as conn:
@@ -351,28 +367,34 @@ def get_all_periods() -> List[Dict[str, Any]]:
 
 def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Computes active period, arrival window status (0-10m on time, 10-30m late, >30m locked out),
-    lunch break state, and 5-min pre-class alert.
+    Computes active period, arrival window status (0-10m on time, 10-30m late, >30m late entry),
+    lunch break state, and real-time IST clock synchronization.
+    Always allows check-in to ensure students are never locked out of attendance.
     """
     if target_dt is None and CURRENT_SIMULATED_TIME:
         try:
-            today = datetime.now()
+            today = get_now_ist()
             h, m = map(int, CURRENT_SIMULATED_TIME.split(":"))
             target_dt = datetime(today.year, today.month, today.day, h, m, 0)
         except Exception:
             pass
 
-    now = target_dt or datetime.now()
+    now = target_dt or get_now_ist()
     now_time_str = now.strftime("%H:%M")
+    real_time_display = now.strftime("%I:%M:%S %p")
     today_date_str = now.strftime("%Y-%m-%d")
     current_minutes = now.hour * 60 + now.minute + (now.second / 60.0)
 
     periods = get_all_periods()
     if not periods:
         return {
+            "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "today_date": today_date_str,
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
             "window_status": "NO_SCHEDULE",
             "message": "No timetable configured.",
-            "can_check_in": False
+            "can_check_in": True
         }
 
     # Helper to parse HH:MM to minutes
@@ -389,16 +411,19 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
         return {
             "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
             "today_date": today_date_str,
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
             "window_status": "BEFORE_COLLEGE",
-            "can_check_in": False,
-            "current_period": None,
+            "arrival_status": "EARLY_CHECKIN",
+            "can_check_in": True,
+            "current_period": periods[0],
             "next_period": periods[0],
             "minutes_elapsed": 0,
             "minutes_remaining_in_period": 0,
             "minutes_remaining_in_window": 0,
             "minutes_until_next": round(mins_until_first, 1),
             "alert_5_min_before": (mins_until_first <= 5.0),
-            "message": f"College starts at {periods[0]['start_time']}. Period 1 starts in {int(mins_until_first)} mins.",
+            "message": f"College starts at {periods[0]['start_time']}. Early check-in accepted for {periods[0]['name']}.",
             "already_checked_in": False
         }
 
@@ -407,16 +432,19 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
         return {
             "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
             "today_date": today_date_str,
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
             "window_status": "COLLEGE_CLOSED",
-            "can_check_in": False,
-            "current_period": None,
+            "arrival_status": "AFTER_HOURS",
+            "can_check_in": True,
+            "current_period": periods[-1],
             "next_period": None,
             "minutes_elapsed": 0,
             "minutes_remaining_in_period": 0,
             "minutes_remaining_in_window": 0,
             "minutes_until_next": 0,
             "alert_5_min_before": False,
-            "message": "College hours completed for today (09:00 AM - 05:00 PM).",
+            "message": "College hours completed for today (09:00 AM - 05:00 PM). Extra-session / After-Hours attendance enabled.",
             "already_checked_in": False
         }
 
@@ -436,19 +464,23 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
             break
 
     if not current_period:
+        current_period = periods[0]
         return {
             "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
             "today_date": today_date_str,
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
             "window_status": "INTERMISSION",
-            "can_check_in": False,
-            "current_period": None,
+            "arrival_status": "ON_TIME",
+            "can_check_in": True,
+            "current_period": current_period,
             "next_period": periods[0],
             "minutes_elapsed": 0,
             "minutes_remaining_in_period": 0,
             "minutes_remaining_in_window": 0,
             "minutes_until_next": 0,
             "alert_5_min_before": False,
-            "message": "Class intermission.",
+            "message": "Class intermission. Attendance check-in active.",
             "already_checked_in": False
         }
 
@@ -471,8 +503,11 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
         return {
             "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
             "today_date": today_date_str,
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
             "window_status": "LUNCH_BREAK",
-            "can_check_in": False,
+            "arrival_status": "RECESS_ENTRY",
+            "can_check_in": True,
             "current_period": current_period,
             "next_period": next_period,
             "minutes_elapsed": round(minutes_elapsed, 1),
@@ -480,7 +515,7 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
             "minutes_remaining_in_window": 0,
             "minutes_until_next": round(mins_remaining_in_period, 1),
             "alert_5_min_before": alert_5_min_before,
-            "message": f"Lunch Break (1:00 PM - 2:00 PM). Next class ({next_period['name'] if next_period else 'Period 5'}) starts at 02:00 PM.",
+            "message": f"Lunch Break (1:00 PM - 2:00 PM). Check-in enabled. Next class ({next_period['name'] if next_period else 'Period 5'}) starts at 02:00 PM.",
             "already_checked_in": False
         }
 
@@ -489,8 +524,11 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
         return {
             "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
             "today_date": today_date_str,
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
             "window_status": "ALREADY_VERIFIED",
-            "can_check_in": False,
+            "arrival_status": checked_in_record.get("arrival_status", "PRESENT"),
+            "can_check_in": True,
             "current_period": current_period,
             "next_period": next_period,
             "minutes_elapsed": round(minutes_elapsed, 1),
@@ -498,7 +536,7 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
             "minutes_remaining_in_window": max(0.0, round(30.0 - minutes_elapsed, 1)),
             "minutes_until_next": round(mins_remaining_in_period, 1),
             "alert_5_min_before": alert_5_min_before,
-            "message": f"Attendance already verified for {current_period['name']} ({checked_in_record.get('arrival_status', 'PRESENT')}).",
+            "message": f"Attendance verified for {current_period['name']} ({checked_in_record.get('arrival_status', 'PRESENT')}). Re-verification enabled.",
             "already_checked_in": True,
             "record": checked_in_record
         }
@@ -509,6 +547,8 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
         return {
             "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
             "today_date": today_date_str,
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
             "window_status": "OPEN_ON_TIME",
             "arrival_status": "ON_TIME",
             "minutes_late": 0,
@@ -520,7 +560,7 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
             "minutes_remaining_in_window": round(30.0 - minutes_elapsed, 1),
             "minutes_until_next": round(mins_remaining_in_period, 1),
             "alert_5_min_before": alert_5_min_before,
-            "message": f"🟢 {current_period['name']} is Active! You are On-Time ({int(minutes_elapsed)}m elapsed). Closes at :30.",
+            "message": f"{current_period['name']} is Active! You are On-Time ({int(minutes_elapsed)}m elapsed).",
             "already_checked_in": False
         }
 
@@ -529,6 +569,8 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
         return {
             "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
             "today_date": today_date_str,
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
             "window_status": "OPEN_LATE",
             "arrival_status": "LATE",
             "minutes_late": int(minutes_elapsed),
@@ -540,19 +582,21 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
             "minutes_remaining_in_window": round(30.0 - minutes_elapsed, 1),
             "minutes_until_next": round(mins_remaining_in_period, 1),
             "alert_5_min_before": alert_5_min_before,
-            "message": f"🟡 Late Window for {current_period['name']} ({int(minutes_elapsed)}m late). Check-in allowed until 30m mark ({int(30 - minutes_elapsed)}m left)!",
+            "message": f"Late Window for {current_period['name']} ({int(minutes_elapsed)}m late). Check-in allowed.",
             "already_checked_in": False
         }
 
-    # > 30 mins: Locked out! Not allowed to check in
+    # > 30 mins: Late Entry allowed
     else:
         return {
             "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
             "today_date": today_date_str,
-            "window_status": "LOCKED_OUT",
-            "arrival_status": "LOCKED_OUT",
+            "real_time_display": real_time_display,
+            "timezone": "IST (UTC+05:30)",
+            "window_status": "LATE_ENTRY",
+            "arrival_status": "LATE",
             "minutes_late": int(minutes_elapsed),
-            "can_check_in": False,
+            "can_check_in": True,
             "current_period": current_period,
             "next_period": next_period,
             "minutes_elapsed": round(minutes_elapsed, 1),
@@ -560,7 +604,7 @@ def get_current_schedule_info(target_dt: Optional[datetime] = None, student_id: 
             "minutes_remaining_in_window": 0,
             "minutes_until_next": round(mins_remaining_in_period, 1),
             "alert_5_min_before": alert_5_min_before,
-            "message": f"🔴 Attendance Closed for {current_period['name']} (Late by {int(minutes_elapsed)} mins > 30 mins). Please join the next class at {next_period['start_time'] if next_period else 'tomorrow'}.",
+            "message": f"{current_period['name']} is Active (Late entry: {int(minutes_elapsed)}m elapsed). Attendance accepted.",
             "already_checked_in": False
         }
 
@@ -608,23 +652,26 @@ def log_attendance(
     minutes_late: int = 0
 ) -> int:
     """Logs an attendance verification attempt with all multi-factor parameters and period tracking."""
+    now_ist = get_now_ist()
     if not attendance_date:
-        attendance_date = datetime.now().strftime("%Y-%m-%d")
+        attendance_date = now_ist.strftime("%Y-%m-%d")
+
+    timestamp_str = now_ist.strftime("%Y-%m-%d %H:%M:%S")
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO attendance_records (
-                student_id, student_name, attendance_date, period_id, period_name,
+                student_id, student_name, timestamp, attendance_date, period_id, period_name,
                 arrival_status, minutes_late, device_id, device_verified,
                 user_latitude, user_longitude, zone_id, zone_name,
                 distance_to_zone_meters, location_verified,
                 face_distance, face_similarity_score, face_verified,
                 liveness_score, liveness_verified,
                 status, message
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            student_id, student_name, attendance_date, period_id, period_name,
+            student_id, student_name, timestamp_str, attendance_date, period_id, period_name,
             arrival_status, minutes_late, device_id, 1 if device_verified else 0,
             user_latitude, user_longitude, zone_id, zone_name,
             distance_to_zone_meters, 1 if location_verified else 0,
@@ -641,7 +688,7 @@ def get_student_day_history(student_id: str, date_str: Optional[str] = None) -> 
     Computes a student's full day attendance status across all 7 periods + 1 lunch break.
     """
     if not date_str:
-        date_str = datetime.now().strftime("%Y-%m-%d")
+        date_str = get_now_ist().strftime("%Y-%m-%d")
 
     periods = get_all_periods()
     
@@ -662,7 +709,7 @@ def get_student_day_history(student_id: str, date_str: Optional[str] = None) -> 
     on_time_count = 0
     late_count = 0
 
-    now = datetime.now()
+    now = get_now_ist()
     now_date_str = now.strftime("%Y-%m-%d")
     current_minutes = now.hour * 60 + now.minute
 

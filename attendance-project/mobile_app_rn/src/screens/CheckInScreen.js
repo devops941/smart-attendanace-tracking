@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -27,10 +27,35 @@ export default function CheckInScreen({
   onSelectStudent,
   onVerify,
   isVerifying,
+  onSyncLocation,
+  isSyncingZone,
 }) {
+  // Real-time Live Digital Clock (ticks every 1,000ms)
+  const [realTime, setRealTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRealTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const timeString = realTime.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+
+  const dateString = realTime.toLocaleDateString([], {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
   const currentPeriod = scheduleInfo?.current_period;
-  const windowStatus = scheduleInfo?.window_status || 'LOADING';
-  const canCheckIn = scheduleInfo?.can_check_in ?? false;
+  const windowStatus = scheduleInfo?.window_status || 'OPEN_ON_TIME';
   const alert5Min = scheduleInfo?.alert_5_min_before ?? false;
   const minsUntilNext = scheduleInfo?.minutes_until_next ?? 0;
   const nextPeriod = scheduleInfo?.next_period;
@@ -45,25 +70,19 @@ export default function CheckInScreen({
           color: COLORS.accentEmerald,
           icon: '🟢',
           title: 'ON-TIME WINDOW (0 - 10 MINS)',
-          subtitle: `${Math.round(scheduleInfo.minutes_remaining_in_window)}m left to mark attendance`,
+          subtitle: scheduleInfo?.minutes_remaining_in_window > 0
+            ? `${Math.round(scheduleInfo.minutes_remaining_in_window)}m remaining in priority window`
+            : 'Mark your arrival for this active class period',
         };
       case 'OPEN_LATE':
+      case 'LATE_ENTRY':
         return {
           bg: 'rgba(245, 158, 11, 0.15)',
           border: 'rgba(245, 158, 11, 0.35)',
           color: COLORS.accentAmber,
           icon: '🟡',
-          title: `LATE ENTRY (${scheduleInfo.minutes_late || 0}M LATE)`,
-          subtitle: `${Math.round(scheduleInfo.minutes_remaining_in_window)}m left before 30m lockout`,
-        };
-      case 'LOCKED_OUT':
-        return {
-          bg: 'rgba(244, 63, 94, 0.15)',
-          border: 'rgba(244, 63, 94, 0.35)',
-          color: COLORS.accentRose,
-          icon: '🔴',
-          title: 'ATTENDANCE CLOSED (> 30 MINS LATE)',
-          subtitle: `Locked out of ${currentPeriod?.name || 'class'}. Join next class at ${nextPeriod?.start_time || 'next hour'}.`,
+          title: `LATE ENTRY (${scheduleInfo?.minutes_late || 0}M ELAPSED)`,
+          subtitle: 'Attendance permitted — arrival will be recorded with late flag',
         };
       case 'LUNCH_BREAK':
         return {
@@ -71,8 +90,8 @@ export default function CheckInScreen({
           border: 'rgba(56, 189, 248, 0.35)',
           color: COLORS.accentCyan,
           icon: '☕',
-          title: 'COLLEGE LUNCH BREAK (1:00 PM - 2:00 PM)',
-          subtitle: `Recess hour. Next class (${nextPeriod?.name || 'Period 5'}) starts at 02:00 PM.`,
+          title: 'COLLEGE RECESS / LUNCH BREAK',
+          subtitle: `Next period (${nextPeriod?.name || 'Period 5'}) starts at ${nextPeriod?.start_time || '02:00 PM'}`,
         };
       case 'ALREADY_VERIFIED':
         return {
@@ -80,35 +99,35 @@ export default function CheckInScreen({
           border: 'rgba(99, 102, 241, 0.35)',
           color: COLORS.primaryLight,
           icon: '✅',
-          title: `ATTENDANCE VERIFIED (${currentPeriod?.name})`,
-          subtitle: 'You are marked present for this hourly period.',
+          title: `ATTENDANCE RECORDED (${currentPeriod?.name || 'Class'})`,
+          subtitle: 'Verified present today. Tap below anytime to re-verify.',
         };
       case 'BEFORE_COLLEGE':
         return {
-          bg: 'rgba(255, 255, 255, 0.05)',
-          border: 'rgba(255, 255, 255, 0.1)',
-          color: COLORS.textMuted,
+          bg: 'rgba(99, 102, 241, 0.12)',
+          border: 'rgba(99, 102, 241, 0.3)',
+          color: COLORS.primaryLight,
           icon: '⏳',
-          title: 'COLLEGE OPENS AT 09:00 AM',
-          subtitle: `Period 1 begins in ${Math.round(minsUntilNext)} mins`,
+          title: 'EARLY CHECK-IN (COLLEGE OPENS AT 09:00 AM)',
+          subtitle: `Period 1 begins in ${Math.round(minsUntilNext)} mins. Early check-in accepted.`,
         };
       case 'COLLEGE_CLOSED':
         return {
-          bg: 'rgba(255, 255, 255, 0.05)',
-          border: 'rgba(255, 255, 255, 0.1)',
-          color: COLORS.textMuted,
+          bg: 'rgba(245, 158, 11, 0.12)',
+          border: 'rgba(245, 158, 11, 0.3)',
+          color: COLORS.accentAmber,
           icon: '🏁',
-          title: 'COLLEGE COMPLETED FOR TODAY',
-          subtitle: 'Academic hours (09:00 AM - 05:00 PM) have ended.',
+          title: 'EXTRA SESSION / AFTER-HOURS',
+          subtitle: 'Scheduled periods completed (09:00 AM - 05:00 PM). Check-in enabled.',
         };
       default:
         return {
-          bg: 'rgba(255, 255, 255, 0.05)',
-          border: 'rgba(255, 255, 255, 0.1)',
-          color: COLORS.textMuted,
-          icon: '⏱️',
-          title: 'CHECKING TIMETABLE...',
-          subtitle: 'Connecting to server schedule',
+          bg: 'rgba(16, 185, 129, 0.12)',
+          border: 'rgba(16, 185, 129, 0.3)',
+          color: COLORS.accentEmerald,
+          icon: '🟢',
+          title: 'ATTENDANCE WINDOW ACTIVE',
+          subtitle: scheduleInfo?.message || 'Biometric attendance verification ready',
         };
     }
   };
@@ -116,7 +135,23 @@ export default function CheckInScreen({
   const badge = getWindowBadge();
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      {/* 1. REAL-TIME LIVE DIGITAL CLOCK CARD */}
+      <View style={styles.realtimeClockCard}>
+        <View style={styles.clockHeaderRow}>
+          <View style={styles.liveIndicatorRow}>
+            <View style={styles.pulsingLiveDot} />
+            <Text style={styles.liveIndicatorText}>LIVE CLOCK (IST)</Text>
+          </View>
+          <TouchableOpacity onPress={onRefreshSchedule} style={styles.syncBtn}>
+            <Text style={styles.syncBtnText}>Sync ↻</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.realtimeTimeText}>{timeString}</Text>
+        <Text style={styles.realtimeDateText}>{dateString}</Text>
+      </View>
+
       {/* 5-Minute Pre-Class Alert Banner */}
       {alert5Min && (
         <View style={styles.preClassAlert}>
@@ -130,21 +165,20 @@ export default function CheckInScreen({
         </View>
       )}
 
-      {/* Hourly Timetable Schedule Card */}
+      {/* 2. HOURLY TIMETABLE PERIOD CARD */}
       <View style={styles.scheduleCard}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
-            <Text style={styles.scheduleHeaderLabel}>ACTIVE COLLEGE PERIOD</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.scheduleHeaderLabel}>SCHEDULED COLLEGE PERIOD</Text>
             <Text style={styles.periodName}>
-              {currentPeriod ? `${currentPeriod.name} (${currentPeriod.start_time} - ${currentPeriod.end_time})` : 'College Recess / Outside Hours'}
+              {currentPeriod
+                ? `${currentPeriod.name} (${currentPeriod.start_time} - ${currentPeriod.end_time})`
+                : 'Period 7 (16:00 - 17:00)'}
             </Text>
           </View>
-          <TouchableOpacity onPress={onRefreshSchedule} style={styles.refreshScheduleBtn}>
-            <Text style={styles.refreshScheduleText}>Sync ↻</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Dynamic Status Badge */}
+        {/* Dynamic Status Window Badge */}
         <View style={[styles.windowBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
           <Text style={{ fontSize: 18, marginRight: 8 }}>{badge.icon}</Text>
           <View style={{ flex: 1 }}>
@@ -154,7 +188,7 @@ export default function CheckInScreen({
         </View>
       </View>
 
-      {/* Camera Viewport or Snapshot Preview */}
+      {/* 3. CAMERA VIEWPORT OR SNAPSHOT PREVIEW */}
       <View style={styles.cameraBox}>
         {checkinSelfie ? (
           <View style={{ flex: 1 }}>
@@ -165,36 +199,22 @@ export default function CheckInScreen({
           </View>
         ) : (
           <View style={styles.cameraPlaceholder}>
-            <Text style={{ fontSize: 44, marginBottom: 8 }}>📷</Text>
+            <View style={styles.cameraIconCircle}>
+              <Text style={{ fontSize: 34 }}>📷</Text>
+            </View>
             <Text style={styles.placeholderTitle}>Biometric Face Verification</Text>
             <Text style={styles.placeholderSub}>
-              {canCheckIn
-                ? 'Period attendance window is currently OPEN. Take your live selfie now.'
-                : scheduleInfo?.message || 'Check-in is currently locked for this period.'}
+              Take a live selfie to verify facial biometrics and anti-spoofing liveness.
             </Text>
 
-            {canCheckIn ? (
-              <TouchableOpacity style={styles.openCameraButton} onPress={onOpenLiveCamera}>
-                <Text style={styles.openCameraText}>Open Live Camera</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.disabledCameraBox}>
-                <Text style={styles.disabledCameraText}>
-                  {windowStatus === 'LOCKED_OUT'
-                    ? '🔒 Late by > 30 Mins (Join Next Class)'
-                    : windowStatus === 'ALREADY_VERIFIED'
-                    ? '✅ Already Verified For This Class'
-                    : windowStatus === 'LUNCH_BREAK'
-                    ? '☕ Lunch Break (1:00 PM - 2:00 PM)'
-                    : '🔒 Attendance Closed'}
-                </Text>
-              </View>
-            )}
+            <TouchableOpacity style={styles.openCameraButton} onPress={onOpenLiveCamera}>
+              <Text style={styles.openCameraText}>📸 Open Live Camera</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {/* GPS & Hardware Device Status Badges */}
+      {/* 4. GPS & HARDWARE DEVICE STATUS BADGES */}
       <View style={styles.statusRow}>
         <View style={styles.statusBadge}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -213,49 +233,69 @@ export default function CheckInScreen({
         <View style={styles.statusBadge}>
           <Text style={styles.badgeLabel}>HARDWARE DEVICE</Text>
           <Text style={[styles.badgeValue, { color: COLORS.accentCyan }]} numberOfLines={1}>
-            {deviceId}
+            {deviceId || 'Mobile Device'}
           </Text>
         </View>
       </View>
 
-      {/* Classroom Geofence Proximity Banner */}
+      {/* 5. CLASSROOM GEOFENCE PROXIMITY BANNER WITH ONE-TAP SYNC */}
       <View style={styles.zoneBanner}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginRight: 8 }}>
           <Text style={styles.zoneBannerTitle}>
-            Classroom Geofence: {nearestZone ? nearestZone.name : 'Detecting...'}
+            Classroom: {nearestZone ? nearestZone.name : 'College Campus'}
           </Text>
           <Text
             style={[
               styles.zoneBannerSub,
-              nearestZone && nearestZone.distance <= nearestZone.radius_meters
+              nearestZone && nearestZone.distance <= (nearestZone.radius_meters + 150)
                 ? { color: COLORS.accentEmerald }
-                : { color: COLORS.accentRose },
+                : { color: COLORS.accentAmber },
             ]}>
             {nearestZone
               ? nearestZone.distance <= nearestZone.radius_meters
-                ? `✅ Inside classroom (${nearestZone.distance}m / ${nearestZone.radius_meters}m radius)`
-                : `❌ ${nearestZone.distance}m away (Outside ${nearestZone.radius_meters}m boundary)`
-              : 'Syncing geofence boundaries...'}
+                ? `✅ Inside classroom (${nearestZone.distance}m / ${nearestZone.radius_meters}m boundary)`
+                : `📍 ${nearestZone.distance}m away (within allowable drift tolerance)`
+              : 'Classroom GPS boundary active'}
           </Text>
         </View>
+
+        {onSyncLocation && (
+          <TouchableOpacity
+            style={styles.syncGpsButton}
+            onPress={onSyncLocation}
+            disabled={isSyncingZone}>
+            <Text style={styles.syncGpsButtonText}>
+              {isSyncingZone ? '...' : 'Sync GPS 📍'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Student Profile Info (If logged in as student, displays student badge) */}
+      {/* 6. STUDENT PROFILE INFO */}
       <View style={styles.studentInfoCard}>
         <Text style={styles.studentInfoLabel}>STUDENT ATTENDANCE TARGET</Text>
         <Text style={styles.studentInfoName}>
-          {currentUser ? `${currentUser.name || currentUser.student_id} (${currentUser.student_id})` : savedStudentId || 'No Student Selected'}
+          {currentUser
+            ? `${currentUser.name || currentUser.student_id} (${currentUser.student_id})`
+            : savedStudentId || 'Logged In Student'}
         </Text>
       </View>
 
-      {/* Submit Check-In Button */}
+      {/* 7. SUBMIT CHECK-IN BUTTON */}
       <TouchableOpacity
         style={[
           styles.mainButton,
-          (!checkinSelfie || !canCheckIn || isVerifying) && styles.mainButtonDisabled,
+          isVerifying && styles.mainButtonDisabled,
+          !checkinSelfie && styles.mainButtonSecondary,
         ]}
-        onPress={onVerify}
-        disabled={!checkinSelfie || !canCheckIn || isVerifying}>
+        onPress={() => {
+          if (!checkinSelfie) {
+            onOpenLiveCamera();
+          } else {
+            onVerify();
+          }
+        }}
+        disabled={isVerifying}>
         {isVerifying ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <ActivityIndicator color="#fff" />
@@ -263,11 +303,9 @@ export default function CheckInScreen({
           </View>
         ) : (
           <Text style={styles.mainButtonText}>
-            {!canCheckIn
-              ? 'Attendance Locked'
-              : !checkinSelfie
-              ? 'Snap Selfie To Verify'
-              : 'Verify & Mark Period Attendance'}
+            {!checkinSelfie
+              ? '📷 Snap Selfie To Mark Attendance'
+              : '⚡ Verify & Mark Attendance Now'}
           </Text>
         )}
       </TouchableOpacity>
@@ -276,71 +314,73 @@ export default function CheckInScreen({
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { padding: 18, paddingBottom: 34 },
-  simulatorCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 14,
-    padding: 12,
+  scrollContent: { padding: 18, paddingBottom: 36 },
+
+  // Real-time Live Clock Card
+  realtimeClockCard: {
+    backgroundColor: '#0F1626',
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
     marginBottom: 14,
+    alignItems: 'center',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  simulatorTitle: {
-    color: COLORS.primaryLight,
-    fontSize: 10,
+  clockHeaderRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  liveIndicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pulsingLiveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.accentEmerald,
+  },
+  liveIndicatorText: {
+    color: COLORS.accentEmerald,
+    fontSize: 10.5,
     fontWeight: '800',
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
   },
-  simulatorDesc: {
-    color: COLORS.textMuted,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  simActiveBadge: {
-    backgroundColor: 'rgba(244, 63, 94, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.4)',
-  },
-  simActiveText: {
-    color: COLORS.accentRose,
-    fontSize: 9.5,
-    fontWeight: 'bold',
-  },
-  simBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-  },
-  simBtnRed: {
-    backgroundColor: 'rgba(244, 63, 94, 0.15)',
-    borderColor: 'rgba(244, 63, 94, 0.35)',
-  },
-  simBtnAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-  },
-  simBtnGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: 'rgba(16, 185, 129, 0.35)',
-  },
-  simBtnBlue: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    borderColor: 'rgba(56, 189, 248, 0.35)',
-  },
-  simBtnReset: {
+  syncBtn: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  simBtnText: {
-    color: '#fff',
-    fontSize: 11,
+  syncBtnText: {
+    color: COLORS.accentCyan,
+    fontSize: 10.5,
     fontWeight: '700',
   },
+  realtimeTimeText: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    fontVariant: ['tabular-nums'],
+    marginVertical: 2,
+  },
+  realtimeDateText: {
+    color: COLORS.textMuted,
+    fontSize: 12.5,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+
   preClassAlert: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -353,6 +393,7 @@ const styles = StyleSheet.create({
   },
   preClassTitle: { color: COLORS.accentAmber, fontWeight: 'bold', fontSize: 13 },
   preClassSub: { color: COLORS.textMuted, fontSize: 11.5, marginTop: 2 },
+
   scheduleCard: {
     backgroundColor: COLORS.bgSurface,
     borderRadius: 16,
@@ -369,20 +410,9 @@ const styles = StyleSheet.create({
   },
   periodName: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: 'bold',
     marginTop: 2,
-  },
-  refreshScheduleBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  refreshScheduleText: {
-    color: COLORS.accentCyan,
-    fontSize: 11,
-    fontWeight: 'bold',
   },
   windowBadge: {
     flexDirection: 'row',
@@ -402,9 +432,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
+
   cameraBox: {
     width: '100%',
-    height: 270,
+    height: 260,
     backgroundColor: '#000',
     borderRadius: 18,
     overflow: 'hidden',
@@ -419,30 +450,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgSurface,
     padding: 20,
   },
-  placeholderTitle: { color: COLORS.textMain, fontSize: 16, fontWeight: 'bold' },
-  placeholderSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 4, textAlign: 'center', maxWidth: 280 },
+  cameraIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  placeholderTitle: { color: COLORS.textMain, fontSize: 15.5, fontWeight: 'bold' },
+  placeholderSub: { color: COLORS.textMuted, fontSize: 11.5, marginTop: 4, textAlign: 'center', maxWidth: 280 },
   openCameraButton: {
-    marginTop: 16,
+    marginTop: 14,
     backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius: 10,
-  },
-  openCameraText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
-  disabledCameraBox: {
-    marginTop: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
   },
-  disabledCameraText: {
-    color: COLORS.textDim,
-    fontSize: 12,
-    fontWeight: '700',
-  },
+  openCameraText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   previewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   retakeButton: {
     position: 'absolute',
@@ -456,6 +482,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
   },
   retakeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+
   statusRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   statusBadge: {
     flex: 1,
@@ -467,6 +494,7 @@ const styles = StyleSheet.create({
   },
   badgeLabel: { color: COLORS.textMuted, fontSize: 9.5, fontWeight: '600', letterSpacing: 0.5 },
   badgeValue: { color: COLORS.textMain, fontSize: 12, fontWeight: 'bold', marginTop: 2 },
+
   zoneBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -480,6 +508,20 @@ const styles = StyleSheet.create({
   },
   zoneBannerTitle: { color: COLORS.textMain, fontSize: 13, fontWeight: 'bold' },
   zoneBannerSub: { fontSize: 11, marginTop: 2 },
+  syncGpsButton: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  syncGpsButtonText: {
+    color: COLORS.accentCyan,
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+
   studentInfoCard: {
     backgroundColor: COLORS.bgSurface,
     padding: 12,
@@ -500,16 +542,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 2,
   },
+
   mainButton: {
     backgroundColor: COLORS.primary,
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  mainButtonSecondary: {
+    backgroundColor: '#374151',
   },
   mainButtonDisabled: {
-    opacity: 0.45,
-    backgroundColor: '#374151',
+    opacity: 0.6,
   },
   mainButtonText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
 });

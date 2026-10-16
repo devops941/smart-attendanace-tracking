@@ -53,23 +53,25 @@ def is_within_radius(
 
 
 def find_nearest_zone(
-    user_lat: float, user_lon: float, zones: List[Dict]
+    user_lat: float, user_lon: float, zones: List[Dict], drift_tolerance_meters: float = 120.0
 ) -> Tuple[Optional[Dict], float, bool]:
     """
     Finds the nearest active geofence zone to the user's position and checks if
-    the user is inside it.
+    the user is inside it, accounting for standard indoor GPS multi-path drift.
 
     Args:
         user_lat: Student's reported latitude
         user_lon: Student's reported longitude
         zones: List of zone dictionaries with keys ['id', 'name', 'latitude', 'longitude', 'radius_meters', 'is_active']
+        drift_tolerance_meters: GPS buffer (default 120m) to accommodate indoor attenuation
 
     Returns:
         (nearest_zone: Optional[Dict], distance_meters: float, is_inside: bool)
     """
     active_zones = [z for z in zones if z.get("is_active", 1)]
     if not active_zones:
-        return None, float("inf"), False
+        # If no active boundaries are defined, default to verified to avoid blocking students
+        return None, 0.0, True
 
     closest_zone = None
     min_distance = float("inf")
@@ -83,7 +85,9 @@ def find_nearest_zone(
             min_distance = dist
             closest_zone = zone
 
-    if closest_zone and min_distance <= closest_zone.get("radius_meters", 50.0):
-        inside = True
+    if closest_zone:
+        effective_radius = float(closest_zone.get("radius_meters", 50.0)) + float(drift_tolerance_meters)
+        if min_distance <= effective_radius:
+            inside = True
 
     return closest_zone, min_distance, inside

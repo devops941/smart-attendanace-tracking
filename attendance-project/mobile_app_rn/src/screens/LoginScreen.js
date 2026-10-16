@@ -17,7 +17,7 @@ import { COLORS } from '../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PREF_SERVER_URL, IP_PRESETS } from '../constants/config';
 
-export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess }) {
+export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, deviceId }) {
   const [roleTab, setRoleTab] = useState('student'); // 'student' | 'admin'
   const [studentId, setStudentId] = useState('');
   const [studentPassword, setStudentPassword] = useState('');
@@ -77,6 +77,7 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess })
         body: JSON.stringify({
           student_id: studentId.trim(),
           password: studentPassword.trim(),
+          device_id: deviceId || 'Mobile Device',
         }),
       });
 
