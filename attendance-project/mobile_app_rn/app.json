@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Smart Attendance",
+    "slug": "smart-attendance",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "backgroundColor": "#090D16"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app requires camera access to verify your live face for attendance.",
+        "NSLocationWhenInUseUsageDescription": "This app requires GPS location to verify you are physically inside the classroom boundary."
+      }
+    },
+    "android": {
+      "package": "com.smartattendance.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#090D16"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Smart Attendance to access your camera for facial biometrics."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Smart Attendance to access your GPS location for classroom geofencing."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e8dd6c7c-9a78-400e-9a25-a144a4d07022"
+      }
+    }
+  }
+}

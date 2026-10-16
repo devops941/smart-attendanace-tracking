@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Python virtual environment
+venv/
+env/
+ENV/
+.venv/
+attendance-project/backend/venv/
+
+# Python prebuilt wheels & temporary SQLite WAL files
+wheels/
+attendance-project/backend/wheels/
+*.db-shm
+*.db-wal
+
+# Node & Expo dependencies & caches
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Executables & Binaries
+*.exe
+*.msi
+cloudflared*
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

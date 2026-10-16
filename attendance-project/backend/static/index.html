@@ -1,0 +1,1818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Attendance System | Face Recognition & GPS Geofence</title>
+  <meta name="description" content="AI-Powered Smart Attendance Verification with 128-d Facial Biometrics, GPS Geofencing, and Anti-Proxy Device Binding.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #090d16;
+      --bg-surface: #111726;
+      --bg-surface-elevated: #182238;
+      --bg-glass: rgba(17, 23, 38, 0.75);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(99, 102, 241, 0.3);
+      --primary: #6366f1;
+      --primary-light: #818cf8;
+      --primary-glow: rgba(99, 102, 241, 0.4);
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      --shadow-glow: 0 0 25px -5px var(--primary-glow);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 45%);
+      background-attachment: fixed;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-base); }
+    ::-webkit-scrollbar-thumb { background: #232d45; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334162; }
+
+    /* Top Navigation */
+    header {
+      backdrop-filter: blur(16px);
+      background: var(--bg-glass);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 0.9rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary), var(--accent-cyan));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+
+    .brand-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2;
+    }
+
+    .brand-text h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+    }
+
+    .nav-tab {
+      padding: 8px 18px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-tab:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .nav-tab.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge-pill {
+      font-size: 0.78rem;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+
+    .badge-live {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .dot-pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.1); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    /* Main Container */
+    main {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* Stat Cards */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      box-shadow: var(--shadow-card);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent-cyan));
+    }
+
+    .stat-title {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .stat-val {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .stat-sub {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Tab Content Panels */
+    .tab-panel {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Grid Layouts */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.75rem;
+    }
+
+    @media (max-width: 992px) {
+      .grid-2col { grid-template-columns: 1fr; }
+      header { flex-direction: column; gap: 1rem; align-items: stretch; }
+      .nav-tabs { overflow-x: auto; }
+    }
+
+    /* Card Containers */
+    .panel-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      box-shadow: var(--shadow-card);
+      backdrop-filter: blur(10px);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .panel-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-title-icon {
+      color: var(--accent-cyan);
+    }
+
+    /* Forms */
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    select {
+      width: 100%;
+      padding: 11px 14px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 0.92rem;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    }
+
+    .input-helper {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 5px;
+    }
+
+    /* Camera / Photo Capture Area */
+    .camera-wrapper {
+      position: relative;
+      background: #000;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      aspect-ratio: 4/3;
+      border: 2px dashed rgba(255, 255, 255, 0.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    #videoPreview, #capturedCanvas, #capturedImg {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .camera-placeholder {
+      text-align: center;
+      color: var(--text-dim);
+      padding: 1.5rem;
+    }
+
+    .camera-hud-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .face-target-box {
+      position: absolute;
+      width: 55%;
+      height: 65%;
+      border: 2px dashed rgba(6, 182, 212, 0.6);
+      border-radius: 50% 50% 45% 45%;
+      pointer-events: none;
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      font-family: inherit;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #4f46e5);
+      color: #fff;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--accent-emerald), #059669);
+      color: #fff;
+    }
+
+    .btn-block {
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+    }
+
+    /* Verification Diagnostics HUD */
+    .diagnostic-panel {
+      margin-top: 1.5rem;
+      background: var(--bg-surface-elevated);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .factor-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      border-radius: var(--radius-sm);
+      background: rgba(0, 0, 0, 0.25);
+      border-left: 4px solid var(--text-dim);
+      transition: all 0.3s ease;
+    }
+
+    .factor-item.passed {
+      border-left-color: var(--accent-emerald);
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    .factor-item.failed {
+      border-left-color: var(--accent-rose);
+      background: rgba(244, 63, 94, 0.08);
+    }
+
+    .factor-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .factor-detail {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .factor-badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-pass { background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); }
+    .badge-fail { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); }
+    .badge-idle { background: rgba(148, 163, 184, 0.2); color: var(--text-muted); }
+
+    /* Result Banner */
+    .result-banner {
+      margin-top: 1.25rem;
+      padding: 1.25rem;
+      border-radius: var(--radius-md);
+      display: none;
+      animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .result-banner.success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+
+    .result-banner.error {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fb7185;
+    }
+
+    .result-banner h3 {
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+    }
+
+    .result-banner p {
+      font-size: 0.85rem;
+      color: #e2e8f0;
+    }
+
+    /* Tables */
+    .table-responsive {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 12px 16px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    .code-chip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent-cyan);
+    }
+
+    /* Privacy Banner */
+    .privacy-notice {
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+
+    .privacy-notice svg {
+      width: 28px;
+      height: 28px;
+      color: var(--accent-cyan);
+      flex-shrink: 0;
+    }
+
+    .privacy-text {
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+
+    .privacy-text strong {
+      color: #fff;
+    }
+
+    /* Preset Buttons for GPS Simulator */
+    .gps-presets {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    .gps-pill {
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .gps-pill:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--primary);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 16v-4M12 8h.01"/>
+          <path d="M9 10a3 3 0 0 1 6 0c0 1.5-1.5 2.5-3 3.5"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>Smart Attendance System</h1>
+        <p>Face Biometrics & GPS Geofencing</p>
+      </div>
+    </div>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('checkin')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Live Verification
+      </button>
+      <button class="nav-tab" onclick="switchTab('students')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Students
+      </button>
+      <button class="nav-tab" onclick="switchTab('zones')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        Geofence Zones
+      </button>
+      <button class="nav-tab" onclick="switchTab('records')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+        Audit Records
+      </button>
+    </div>
+
+    <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
+      <span class="badge-pill badge-live">
+        <span class="dot-pulse"></span>
+        API Online
+      </span>
+      <div id="authContainer"></div>
+      <a href="/docs" target="_blank" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+        API Docs
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Privacy & Architecture Reassurance Banner -->
+    <div class="privacy-notice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <div class="privacy-text">
+        <strong>Zero-Raw-Photo Storage & Multi-Factor Security:</strong>
+        Photos are transformed in volatile memory into 128-dimensional mathematical embeddings and discarded immediately. Attendance is only authenticated when all 3 factors pass: <strong>Device ID Binding</strong> (anti-proxy), <strong>GPS Haversine Geofencing</strong> (classroom proximity), and <strong>Facial Biometrics</strong>.
+      </div>
+    </div>
+
+    <!-- Live Metric Cards -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-title">Enrolled Students</div>
+        <div class="stat-val" id="statStudents">-</div>
+        <div class="stat-sub">Registered with face biometric</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Active Geofences</div>
+        <div class="stat-val" id="statZones">-</div>
+        <div class="stat-sub">Designated classroom zones</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Today's Check-Ins</div>
+        <div class="stat-val" id="statToday">-</div>
+        <div class="stat-sub"><span id="statTodaySuccess">-</span> Verified Passed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Success Rate</div>
+        <div class="stat-val" id="statRate">-%</div>
+        <div class="stat-sub">All-time verification accuracy</div>
+      </div>
+    </div>
+
+    <!-- TAB 1: LIVE ATTENDANCE CHECK-IN SIMULATOR -->
+    <div id="tab-checkin" class="tab-panel active">
+      <div class="grid-2col">
+        <!-- Left: Camera & Credentials Input -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">📷</span>
+              Live Attendance Check-In
+            </h2>
+            <span class="badge-pill" style="background: rgba(255,255,255,0.05); color: var(--text-muted);">Step 1 of 2</span>
+          </div>
+
+          <!-- Camera Stream / Selfie Viewport -->
+          <div class="camera-wrapper">
+            <video id="videoPreview" autoplay playsinline muted></video>
+            <canvas id="capturedCanvas"></canvas>
+            <img id="capturedImg" alt="Captured Selfie Preview">
+
+            <div id="cameraPlaceholder" class="camera-placeholder">
+              <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin-bottom:8px; opacity:0.6;">
+                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <p>Camera is currently idle</p>
+              <p style="font-size: 0.78rem; margin-top: 4px;">Use webcam or upload test selfie photo</p>
+            </div>
+
+            <div class="camera-hud-overlay">
+              <span class="badge-pill" style="background: rgba(0,0,0,0.6); color: #fff; font-size: 0.72rem;" id="cameraStatusText">READY</span>
+            </div>
+            <div class="face-target-box" id="faceTargetGuide" style="display:none;"></div>
+          </div>
+
+          <!-- Camera Action Controls -->
+          <div class="btn-row" style="margin-bottom: 1.5rem;">
+            <button class="btn btn-secondary" id="btnStartCamera" onclick="startWebcam()">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Start Webcam
+            </button>
+            <button class="btn btn-primary" id="btnCapture" onclick="captureSnapshot()" style="display:none;">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+              Snap Live Photo
+            </button>
+            <label class="btn btn-secondary" style="cursor: pointer;">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              Upload Photo
+              <input type="file" id="fileUploadSelfie" accept="image/*" style="display:none;" onchange="handleSelfieUpload(event)">
+            </label>
+            <button class="btn btn-secondary" onclick="useSampleSelfie()">
+              Use Sample Selfie
+            </button>
+            <button class="btn btn-secondary" style="border-color: rgba(244,63,94,0.4); color: #fda4af;" onclick="simulatePaperSpoof()">
+              ⚠️ Test Spoof Attack
+            </button>
+          </div>
+
+          <!-- Student & Device Inputs -->
+          <div class="form-group">
+            <label for="checkinStudentSelect">Select Enrolled Student:</label>
+            <select id="checkinStudentSelect" onchange="autoFillStudentInfo()">
+              <option value="">-- Choose Student --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="checkinDeviceId">Device ID (Hardware Signature Binding):</label>
+            <input type="text" id="checkinDeviceId" placeholder="e.g. Pixel7-DEV-9921">
+            <div class="input-helper">Anti-Proxy Protection: Only the student's registered mobile device is accepted.</div>
+          </div>
+
+          <!-- GPS Location Coordinates -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label style="margin-bottom:0;">Student GPS Coordinates (Lat, Lon):</label>
+              <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="fetchBrowserGPS()">
+                📍 Auto-Detect GPS
+              </button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <input type="number" id="checkinLat" step="0.000001" placeholder="Latitude (e.g. 28.613939)">
+              <input type="number" id="checkinLon" step="0.000001" placeholder="Longitude (e.g. 77.209021)">
+            </div>
+            <div class="gps-presets">
+              <span style="font-size:0.75rem; color:var(--text-dim); align-self:center;">Presets:</span>
+              <button type="button" class="gps-pill" onclick="setPresetGPS(28.613939, 77.209021, 'Inside Lab 101 (0m)')">Inside Lab 101 (0m)</button>
+              <button type="button" class="gps-pill" onclick="setPresetGPS(28.614100, 77.209100, 'Campus Corridor (22m)')">Corridor (22m)</button>
+              <button type="button" class="gps-pill" onclick="setPresetGPS(28.625000, 77.220000, 'Off Campus Cafe (1.6km)')">Off Campus (1.6km)</button>
+            </div>
+          </div>
+
+          <button id="btnSubmitAttendance" class="btn btn-primary btn-block" onclick="submitAttendanceVerification()">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Verify & Mark Attendance
+          </button>
+        </div>
+
+        <!-- Right: Verification Diagnostics HUD -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">🛡️</span>
+              Multi-Factor Authentication HUD
+            </h2>
+            <span class="badge-pill" style="background: rgba(255,255,255,0.05); color: var(--text-muted);">Step 2 of 2</span>
+          </div>
+
+          <p style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            Real-time biometric validation engine runs 3 strict cryptographic & geometric checks in parallel:
+          </p>
+
+          <div class="diagnostic-panel">
+            <!-- Factor 1: Device Binding -->
+            <div class="factor-item" id="factorDevice">
+              <div>
+                <div class="factor-title">
+                  <span>📱</span> 1. Device ID Binding Check
+                </div>
+                <div class="factor-detail" id="factorDeviceDetail">Awaiting check-in submission...</div>
+              </div>
+              <span class="factor-badge badge-idle" id="badgeDevice">IDLE</span>
+            </div>
+
+            <!-- Factor 2: GPS Geofence -->
+            <div class="factor-item" id="factorGeo">
+              <div>
+                <div class="factor-title">
+                  <span>📍</span> 2. GPS Haversine Geofence Check
+                </div>
+                <div class="factor-detail" id="factorGeoDetail">Awaiting location evaluation...</div>
+              </div>
+              <span class="factor-badge badge-idle" id="badgeGeo">IDLE</span>
+            </div>
+
+            <!-- Factor 3: Face Biometrics -->
+            <div class="factor-item" id="factorFace">
+              <div>
+                <div class="factor-title">
+                  <span>👤</span> 3. Facial Biometrics (128-d Vector Match)
+                </div>
+                <div class="factor-detail" id="factorFaceDetail">Awaiting selfie photo extraction...</div>
+              </div>
+              <span class="factor-badge badge-idle" id="badgeFace">IDLE</span>
+            </div>
+
+            <!-- Factor 4: Presentation Attack Defense (Liveness Detection) -->
+            <div class="factor-item" id="factorLiveness">
+              <div>
+                <div class="factor-title">
+                  <span>🛡️</span> 4. Presentation Attack Defense (Liveness & Anti-Spoof)
+                </div>
+                <div class="factor-detail" id="factorLivenessDetail">Awaiting optical micro-texture & moiré inspection...</div>
+              </div>
+              <span class="factor-badge badge-idle" id="badgeLiveness">IDLE</span>
+            </div>
+          </div>
+
+          <!-- Overall Result Banner -->
+          <div id="resultBanner" class="result-banner">
+            <h3 id="resultTitle">Attendance Confirmed</h3>
+            <p id="resultMessage">All biometric and geographic criteria satisfied.</p>
+          </div>
+
+          <!-- Verification Metrics Visualizer -->
+          <div style="margin-top: 1.5rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-md); padding: 1.25rem; border: 1px solid var(--border-color);">
+            <h4 style="font-size: 0.82rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
+              Mathematical Feature Inspection
+            </h4>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: #a5b4fc; background: #080c16; padding: 10px; border-radius: 6px; overflow-x: auto;">
+              <div id="vectorSampleOutput">// Sample of live 128-d embedding will appear here upon capture</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: STUDENT ENROLLMENT -->
+    <div id="tab-students" class="tab-panel">
+      <div class="grid-2col">
+        <!-- Register Student Form -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">➕</span>
+              Enroll New Student
+            </h2>
+          </div>
+
+          <form id="studentRegisterForm" onsubmit="handleRegisterStudent(event)">
+            <div class="form-group">
+              <label for="regStudentId">Student ID / Roll Number:</label>
+              <input type="text" id="regStudentId" required placeholder="e.g. STU2026-001">
+            </div>
+
+            <div class="form-group">
+              <label for="regName">Full Name:</label>
+              <input type="text" id="regName" required placeholder="e.g. Alexander Vance">
+            </div>
+
+            <div class="form-group">
+              <label for="regEmail">Email Address (Optional):</label>
+              <input type="email" id="regEmail" placeholder="e.g. student@university.edu">
+            </div>
+
+            <div class="form-group">
+              <label for="regDeviceId">Registered Mobile Device ID:</label>
+              <div style="display:flex; gap:8px;">
+                <input type="text" id="regDeviceId" required placeholder="e.g. Pixel7-DEV-9921">
+                <button type="button" class="btn btn-secondary" onclick="generateRandomDeviceId()">Generate</button>
+              </div>
+              <div class="input-helper">The student's personal phone identifier to block proxy check-ins.</div>
+            </div>
+
+            <div class="form-group">
+              <label>Reference Face Photo (Front-Facing):</label>
+              <input type="file" id="regPhoto" accept="image/*" required style="padding: 8px;">
+              <div class="input-helper">Photo is converted to 128-d vector in memory. Raw image is NEVER stored on disk.</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="btnRegister">
+              Enroll Student Profile
+            </button>
+          </form>
+        </div>
+
+        <!-- Enrolled Students List -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">👥</span>
+              Enrolled Students Directory
+            </h2>
+            <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadStudents()">Refresh</button>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Roll / ID</th>
+                  <th>Name</th>
+                  <th>Bound Device ID</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="studentTableBody">
+                <tr><td colspan="4" style="text-align:center; color:var(--text-dim);">Loading students...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: GEOFENCE ZONES -->
+    <div id="tab-zones" class="tab-panel">
+      <div class="grid-2col">
+        <!-- Add Geofence Zone Form -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">📍</span>
+              Add Classroom Geofence Zone
+            </h2>
+          </div>
+
+          <form id="zoneForm" onsubmit="handleAddZone(event)">
+            <div class="form-group">
+              <label for="zoneName">Classroom / Lecture Hall Name:</label>
+              <input type="text" id="zoneName" required placeholder="e.g. Engineering Block Room 204">
+            </div>
+
+            <div class="form-group">
+              <label for="zoneLat">Classroom Latitude:</label>
+              <input type="number" id="zoneLat" step="0.000001" required placeholder="e.g. 28.613939">
+            </div>
+
+            <div class="form-group">
+              <label for="zoneLon">Classroom Longitude:</label>
+              <input type="number" id="zoneLon" step="0.000001" required placeholder="e.g. 77.209021">
+            </div>
+
+            <div class="form-group">
+              <label for="zoneRadius">Radius (Meters):</label>
+              <input type="number" id="zoneRadius" step="1" required value="50" placeholder="50">
+              <div class="input-helper">Allowed proximity threshold around classroom center (standard: 50 - 100 meters).</div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom: 1.25rem;">
+              <button type="button" class="btn btn-secondary" onclick="fillCurrentLocationForZone()">
+                Use My Current Location
+              </button>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">
+              Save Geofence Zone
+            </button>
+          </form>
+        </div>
+
+        <!-- Zones List -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">🗺️</span>
+              Active Campus Geofences
+            </h2>
+            <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadZones()">Refresh</button>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Zone Name</th>
+                  <th>Center Coordinates</th>
+                  <th>Radius</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="zonesTableBody">
+                <tr><td colspan="4" style="text-align:center; color:var(--text-dim);">Loading zones...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: AUDIT RECORDS -->
+    <div id="tab-records" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <span class="panel-title-icon">📜</span>
+            Complete Attendance Audit Log
+          </h2>
+          <div style="display:flex; gap:10px;">
+            <select id="filterStatus" onchange="loadRecords()" style="width: auto; padding: 6px 12px; font-size: 0.82rem;">
+              <option value="ALL">All Statuses</option>
+              <option value="SUCCESS">Only Passed</option>
+              <option value="REJECTED_FACE">Face Mismatches</option>
+              <option value="REJECTED_LOCATION">Location Mismatches</option>
+              <option value="REJECTED_DEVICE">Device Mismatches</option>
+            </select>
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.82rem;" onclick="loadRecords()">
+              Refresh
+            </button>
+            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.82rem;" onclick="exportCSV()">
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Period / Timing</th>
+                <th>Status</th>
+                <th>Device Bound</th>
+                <th>GPS Distance</th>
+                <th>Face Similarity</th>
+                <th>Liveness (PAD)</th>
+                <th>Audit Message</th>
+              </tr>
+            </thead>
+            <tbody id="recordsTableBody">
+              <tr><td colspan="10" style="text-align:center; color:var(--text-dim);">Loading records...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // State management
+    let videoStream = null;
+    let capturedBlob = null;
+    let studentsCache = [];
+    let zonesCache = [];
+
+    // Switch Tabs
+    function switchTab(tabId) {
+      document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+      const targetBtn = Array.from(document.querySelectorAll('.nav-tab')).find(b => b.getAttribute('onclick').includes(tabId));
+      if (targetBtn) targetBtn.classList.add('active');
+
+      const targetPanel = document.getElementById('tab-' + tabId);
+      if (targetPanel) targetPanel.classList.add('active');
+
+      if (tabId === 'students') loadStudents();
+      if (tabId === 'zones') loadZones();
+      if (tabId === 'records') loadRecords();
+    }
+
+    // Initialize Page
+    window.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      loadStudents();
+      loadZones();
+      // Set default simulator coordinates
+      setPresetGPS(28.613939, 77.209021, 'Inside Lab 101');
+    });
+
+    // Load Stats
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        document.getElementById('statStudents').textContent = data.total_students;
+        document.getElementById('statZones').textContent = data.total_zones;
+        document.getElementById('statToday').textContent = data.today_total;
+        document.getElementById('statTodaySuccess').textContent = data.today_success;
+        document.getElementById('statRate').textContent = data.success_rate + '%';
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+
+    // Camera Handlers
+    async function startWebcam() {
+      const video = document.getElementById('videoPreview');
+      const placeholder = document.getElementById('cameraPlaceholder');
+      const guide = document.getElementById('faceTargetGuide');
+      const btnStart = document.getElementById('btnStartCamera');
+      const btnCapture = document.getElementById('btnCapture');
+      const canvas = document.getElementById('capturedCanvas');
+      const img = document.getElementById('capturedImg');
+
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } });
+        video.srcObject = videoStream;
+        video.style.display = 'block';
+        placeholder.style.display = 'none';
+        canvas.style.display = 'none';
+        img.style.display = 'none';
+        guide.style.display = 'block';
+        btnStart.style.display = 'none';
+        btnCapture.style.display = 'inline-flex';
+        document.getElementById('cameraStatusText').textContent = 'LIVE STREAM';
+      } catch (err) {
+        alert('Could not access camera: ' + err.message + '\nYou can still use the "Upload Photo" button or "Use Sample Selfie".');
+      }
+    }
+
+    function captureSnapshot() {
+      const video = document.getElementById('videoPreview');
+      const canvas = document.getElementById('capturedCanvas');
+      const guide = document.getElementById('faceTargetGuide');
+      const btnStart = document.getElementById('btnStartCamera');
+      const btnCapture = document.getElementById('btnCapture');
+
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Stop camera stream
+      if (videoStream) {
+        videoStream.getTracks().forEach(t => t.stop());
+        videoStream = null;
+      }
+
+      video.style.display = 'none';
+      canvas.style.display = 'block';
+      guide.style.display = 'none';
+      btnStart.style.display = 'inline-flex';
+      btnStart.textContent = 'Retake Photo';
+      btnCapture.style.display = 'none';
+      document.getElementById('cameraStatusText').textContent = 'PHOTO READY';
+
+      canvas.toBlob((blob) => {
+        capturedBlob = blob;
+      }, 'image/jpeg', 0.95);
+    }
+
+    function handleSelfieUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      capturedBlob = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.getElementById('capturedImg');
+        const video = document.getElementById('videoPreview');
+        const placeholder = document.getElementById('cameraPlaceholder');
+        const canvas = document.getElementById('capturedCanvas');
+
+        if (videoStream) {
+          videoStream.getTracks().forEach(t => t.stop());
+          videoStream = null;
+        }
+
+        video.style.display = 'none';
+        placeholder.style.display = 'none';
+        canvas.style.display = 'none';
+        img.src = e.target.result;
+        img.style.display = 'block';
+        document.getElementById('cameraStatusText').textContent = 'UPLOADED FILE';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function useSampleSelfie() {
+      try {
+        const res = await fetch('/api/test-image/student_selfie');
+        if (!res.ok) throw new Error('Test selfie not available');
+        const blob = await res.blob();
+        capturedBlob = blob;
+
+        const img = document.getElementById('capturedImg');
+        const video = document.getElementById('videoPreview');
+        const placeholder = document.getElementById('cameraPlaceholder');
+        const canvas = document.getElementById('capturedCanvas');
+
+        if (videoStream) {
+          videoStream.getTracks().forEach(t => t.stop());
+          videoStream = null;
+        }
+
+        video.style.display = 'none';
+        placeholder.style.display = 'none';
+        canvas.style.display = 'none';
+        img.src = URL.createObjectURL(blob);
+        img.style.display = 'block';
+        document.getElementById('cameraStatusText').textContent = 'SAMPLE TEST SELFIE';
+      } catch (err) {
+        alert('Could not load sample test selfie: ' + err.message);
+      }
+    }
+
+    async function simulatePaperSpoof() {
+      // Creates a blurred flat image simulating a paper photo or screen replay attack
+      try {
+        const res = await fetch('/api/test-image/student_selfie');
+        const blob = await res.blob();
+        const imgObj = new Image();
+        imgObj.src = URL.createObjectURL(blob);
+        imgObj.onload = () => {
+          const canvas = document.getElementById('capturedCanvas');
+          canvas.width = 320;
+          canvas.height = 240;
+          const ctx = canvas.getContext('2d');
+          ctx.filter = 'blur(12px) contrast(80%)';
+          ctx.drawImage(imgObj, 0, 0, 320, 240);
+          ctx.filter = 'none';
+
+          const img = document.getElementById('capturedImg');
+          const video = document.getElementById('videoPreview');
+          const placeholder = document.getElementById('cameraPlaceholder');
+          if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+          video.style.display = 'none';
+          placeholder.style.display = 'none';
+          img.style.display = 'none';
+          canvas.style.display = 'block';
+
+          canvas.toBlob((b) => {
+            capturedBlob = b;
+          }, 'image/jpeg', 0.85);
+
+          document.getElementById('cameraStatusText').textContent = 'SIMULATED SPOOF ATTACK';
+          alert('Spoof simulated! Low-resolution blurred portrait loaded. Click "Verify & Mark Attendance" to test PAD defense.');
+        };
+      } catch (err) {
+        alert('Could not simulate spoof: ' + err.message);
+      }
+    }
+
+    // Geolocation Helpers
+    function fetchBrowserGPS() {
+      if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser.');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById('checkinLat').value = pos.coords.latitude.toFixed(6);
+          document.getElementById('checkinLon').value = pos.coords.longitude.toFixed(6);
+        },
+        (err) => {
+          alert('GPS detection failed: ' + err.message + '\nPlease use the coordinate presets below or enter manually.');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    function setPresetGPS(lat, lon, label) {
+      document.getElementById('checkinLat').value = lat;
+      document.getElementById('checkinLon').value = lon;
+    }
+
+    // Load Students & Populate Dropdown
+    async function loadStudents() {
+      try {
+        const res = await fetch('/api/students');
+        const students = await res.json();
+        studentsCache = students;
+
+        // Populate dropdown in Check-In tab
+        const select = document.getElementById('checkinStudentSelect');
+        select.innerHTML = '<option value="">-- Choose Student --</option>';
+        students.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.student_id;
+          opt.textContent = `${s.student_id} - ${s.name}`;
+          select.appendChild(opt);
+        });
+
+        // Populate Student Directory Table
+        const tbody = document.getElementById('studentTableBody');
+        if (students.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-dim);">No students registered yet. Enroll one on the left!</td></tr>';
+          return;
+        }
+        tbody.innerHTML = students.map(s => `
+          <tr>
+            <td><span class="code-chip">${s.student_id}</span></td>
+            <td><strong>${escapeHtml(s.name)}</strong></td>
+            <td><span class="code-chip">${escapeHtml(s.device_id)}</span></td>
+            <td>
+              <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--accent-rose);" onclick="deleteStudent('${s.student_id}')">
+                Delete
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load students:', err);
+      }
+    }
+
+    function autoFillStudentInfo() {
+      const studentId = document.getElementById('checkinStudentSelect').value;
+      if (!studentId) return;
+      const student = studentsCache.find(s => s.student_id === studentId);
+      if (student) {
+        document.getElementById('checkinDeviceId').value = student.device_id;
+      }
+    }
+
+    function generateRandomDeviceId() {
+      const brands = ['Pixel7', 'iPhone15', 'GalaxyS23', 'OnePlus11'];
+      const brand = brands[Math.floor(Math.random() * brands.length)];
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      document.getElementById('regDeviceId').value = `${brand}-DEV-${rand}`;
+    }
+
+    // Register Student
+    async function handleRegisterStudent(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnRegister');
+      btn.disabled = true;
+      btn.textContent = 'Extracting Biometrics & Enrolling...';
+
+      const formData = new FormData();
+      formData.append('student_id', document.getElementById('regStudentId').value);
+      formData.append('name', document.getElementById('regName').value);
+      formData.append('email', document.getElementById('regEmail').value);
+      formData.append('device_id', document.getElementById('regDeviceId').value);
+      formData.append('photo', document.getElementById('regPhoto').files[0]);
+
+      try {
+        const res = await fetch('/api/students/register', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Registration failed');
+
+        alert(`Success! Enrolled ${data.student.name} with 128-d face embedding. Raw photo was discarded per privacy policy.`);
+        document.getElementById('studentRegisterForm').reset();
+        loadStudents();
+        loadStats();
+      } catch (err) {
+        alert('Error enrolling student: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Enroll Student Profile';
+      }
+    }
+
+    async function deleteStudent(studentId) {
+      if (!confirm(`Delete student ${studentId}?`)) return;
+      try {
+        await fetch(`/api/students/${studentId}`, { method: 'DELETE' });
+        loadStudents();
+        loadStats();
+      } catch (err) {
+        alert('Failed to delete student: ' + err.message);
+      }
+    }
+
+    // Geofence Zones
+    async function loadZones() {
+      try {
+        const res = await fetch('/api/zones');
+        const zones = await res.json();
+        zonesCache = zones;
+
+        const tbody = document.getElementById('zonesTableBody');
+        if (zones.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-dim);">No zones defined.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = zones.map(z => `
+          <tr>
+            <td><strong>${escapeHtml(z.name)}</strong></td>
+            <td><span class="code-chip">${z.latitude.toFixed(6)}, ${z.longitude.toFixed(6)}</span></td>
+            <td><span class="badge-pill" style="background:rgba(99,102,241,0.15); color:var(--primary-light);">${z.radius_meters}m</span></td>
+            <td>
+              <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--accent-rose);" onclick="deleteZone(${z.id})">
+                Delete
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load zones:', err);
+      }
+    }
+
+    function fillCurrentLocationForZone() {
+      if (!navigator.geolocation) {
+        alert('Geolocation not supported');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById('zoneLat').value = pos.coords.latitude.toFixed(6);
+          document.getElementById('zoneLon').value = pos.coords.longitude.toFixed(6);
+        },
+        (err) => alert('Could not get position: ' + err.message)
+      );
+    }
+
+    async function handleAddZone(e) {
+      e.preventDefault();
+      if (!adminToken) {
+        openAdminLoginModal('Faculty authorization required to configure classroom geofences.');
+        return;
+      }
+      const payload = {
+        name: document.getElementById('zoneName').value,
+        latitude: parseFloat(document.getElementById('zoneLat').value),
+        longitude: parseFloat(document.getElementById('zoneLon').value),
+        radius_meters: parseFloat(document.getElementById('zoneRadius').value)
+      };
+
+      try {
+        const res = await fetch('/api/zones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Failed to create zone');
+        document.getElementById('zoneForm').reset();
+        loadZones();
+        loadStats();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function deleteZone(zoneId) {
+      if (!adminToken) {
+        openAdminLoginModal('Faculty authorization required to delete classroom geofences.');
+        return;
+      }
+      if (!confirm('Delete this geofence zone?')) return;
+      try {
+        await fetch(`/api/zones/${zoneId}`, { method: 'DELETE' });
+        loadZones();
+        loadStats();
+      } catch (err) {
+        alert('Failed to delete zone');
+      }
+    }
+
+    // Submit Attendance Verification
+    async function submitAttendanceVerification() {
+      const studentId = document.getElementById('checkinStudentSelect').value;
+      const deviceId = document.getElementById('checkinDeviceId').value;
+      const lat = document.getElementById('checkinLat').value;
+      const lon = document.getElementById('checkinLon').value;
+
+      if (!studentId) { alert('Please select a student.'); return; }
+      if (!deviceId) { alert('Please enter a Device ID.'); return; }
+      if (!lat || !lon) { alert('Please provide GPS Latitude and Longitude.'); return; }
+      if (!capturedBlob) { alert('Please take a selfie photo using the webcam, upload an image, or click "Use Sample Selfie".'); return; }
+
+      const btn = document.getElementById('btnSubmitAttendance');
+      btn.disabled = true;
+      btn.textContent = 'Evaluating Biometrics & Geofence...';
+
+      // Reset HUD badges
+      setFactorState('factorDevice', 'badgeDevice', 'idle', 'Evaluating hardware binding...');
+      setFactorState('factorGeo', 'badgeGeo', 'idle', 'Computing Haversine distance...');
+      setFactorState('factorFace', 'badgeFace', 'idle', 'Extracting 128-d vector & calculating distance...');
+
+      const formData = new FormData();
+      formData.append('student_id', studentId);
+      formData.append('device_id', deviceId);
+      formData.append('latitude', lat);
+      formData.append('longitude', lon);
+      formData.append('selfie', capturedBlob, 'selfie.jpg');
+
+      try {
+        const res = await fetch('/api/attendance/check-in', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+
+        // Update Factor 1: Device
+        if (data.checks.device.passed) {
+          setFactorState('factorDevice', 'badgeDevice', 'passed', `Device ID Matched: ${data.checks.device.provided_device}`);
+        } else {
+          setFactorState('factorDevice', 'badgeDevice', 'failed', `Proxy Violation: Got '${data.checks.device.provided_device}', expected '${data.checks.device.registered_device}'`);
+        }
+
+        // Update Factor 2: Geofence
+        if (data.checks.location.passed) {
+          setFactorState('factorGeo', 'badgeGeo', 'passed', `Inside '${data.checks.location.zone_name}' (${data.checks.location.distance_meters}m away, radius: ${data.checks.location.radius_meters}m)`);
+        } else {
+          setFactorState('factorGeo', 'badgeGeo', 'failed', `Outside bounds (${data.checks.location.distance_meters}m from '${data.checks.location.zone_name}', allowed radius: ${data.checks.location.radius_meters}m)`);
+        }
+
+        // Update Factor 3: Face
+        if (data.checks.face.passed) {
+          setFactorState('factorFace', 'badgeFace', 'passed', `Face Match: Distance ${data.checks.face.distance} <= 0.60 (Confidence: ${data.checks.face.similarity_score}%)`);
+        } else {
+          const detail = data.checks.face.distance !== null 
+            ? `Biometric Mismatch: Distance ${data.checks.face.distance} > 0.60 (Score: ${data.checks.face.similarity_score}%)`
+            : 'No facial features detected in captured image';
+          setFactorState('factorFace', 'badgeFace', 'failed', detail);
+        }
+
+        // Update Factor 4: Liveness & Anti-Spoofing
+        if (data.checks.liveness) {
+          if (data.checks.liveness.passed) {
+            setFactorState('factorLiveness', 'badgeLiveness', 'passed', `Live Human Face Verified (Score: ${data.checks.liveness.score}%, EAR: ${data.checks.liveness.diagnostics ? data.checks.liveness.diagnostics.eye_aspect_ratio : 'OK'})`);
+          } else {
+            const warnText = data.checks.liveness.warnings && data.checks.liveness.warnings.length ? data.checks.liveness.warnings.join('; ') : data.checks.liveness.message;
+            setFactorState('factorLiveness', 'badgeLiveness', 'failed', `PAD Alert: ${warnText} (Score: ${data.checks.liveness.score}%)`);
+          }
+        }
+
+        // Sample vector preview
+        if (data.checks.face.vector_sample) {
+          const livenessTxt = data.checks.liveness ? `\n// Liveness Score: ${data.checks.liveness.score}% [Status: ${data.checks.liveness.status}]` : '';
+          document.getElementById('vectorSampleOutput').textContent = 
+            `// 128-d Embedding Sample (First 5 dimensions):\n[${data.checks.face.vector_sample.join(', ')}]${livenessTxt}\n// Full vector evaluated in memory. Distance: ${data.checks.face.distance}`;
+        }
+
+        // Show banner
+        const banner = document.getElementById('resultBanner');
+        banner.style.display = 'block';
+        if (data.success) {
+          banner.className = 'result-banner success';
+          document.getElementById('resultTitle').textContent = '✅ ATTENDANCE VERIFIED & RECORDED';
+          document.getElementById('resultMessage').textContent = data.message;
+        } else {
+          banner.className = 'result-banner error';
+          document.getElementById('resultTitle').textContent = '❌ ATTENDANCE REJECTED';
+          document.getElementById('resultMessage').textContent = data.message;
+        }
+
+        loadStats();
+      } catch (err) {
+        alert('Server communication error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Verify & Mark Attendance`;
+      }
+    }
+
+    function setFactorState(itemId, badgeId, state, message) {
+      const item = document.getElementById(itemId);
+      const badge = document.getElementById(badgeId);
+      const detail = item.querySelector('.factor-detail');
+
+      item.className = 'factor-item ' + (state === 'passed' ? 'passed' : (state === 'failed' ? 'failed' : ''));
+      badge.className = 'factor-badge ' + (state === 'passed' ? 'badge-pass' : (state === 'failed' ? 'badge-fail' : 'badge-idle'));
+      badge.textContent = state.toUpperCase();
+      detail.textContent = message;
+    }
+
+    // Load Audit Records
+    async function loadRecords() {
+      try {
+        const filterStatus = document.getElementById('filterStatus').value;
+        const res = await fetch(`/api/attendance/records?status=${filterStatus}&limit=50`);
+        const records = await res.json();
+
+        const tbody = document.getElementById('recordsTableBody');
+        if (records.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-dim);">No attendance records found.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = records.map(r => {
+          const isSuccess = r.status === 'SUCCESS';
+          const badgeClass = isSuccess ? 'badge-live' : 'badge-pill" style="background:rgba(244,63,94,0.15); color:var(--accent-rose); border:1px solid rgba(244,63,94,0.3)';
+          const livenessScore = r.liveness_score !== undefined && r.liveness_score !== null ? `${r.liveness_score}%` : 'N/A';
+          const livenessBadge = r.liveness_verified ? '✅ Live' : '❌ Spoof';
+          return `
+            <tr>
+              <td style="font-size:0.8rem; color:var(--text-muted);">${r.timestamp}</td>
+              <td><span class="code-chip">${r.student_id}</span></td>
+              <td><strong>${escapeHtml(r.student_name)}</strong></td>
+              <td><span class="code-chip" style="color:var(--primary-light);">${escapeHtml(r.period_name || 'Period')}</span> ${r.arrival_status === 'LATE' ? '<span style="color:var(--accent-amber); font-size:0.75rem;">(Late)</span>' : ''}</td>
+              <td><span class="${badgeClass}">${r.status}</span></td>
+              <td>${r.device_verified ? '✅ Match' : '❌ Mismatch'}</td>
+              <td>${r.distance_to_zone_meters !== null ? r.distance_to_zone_meters + 'm' : 'N/A'}</td>
+              <td>${r.face_similarity_score !== null ? r.face_similarity_score + '%' : 'N/A'}</td>
+              <td><span style="font-size:0.8rem;">${livenessBadge} (${livenessScore})</span></td>
+              <td style="font-size:0.8rem; color:var(--text-muted); max-width: 250px;">${escapeHtml(r.message || '')}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error('Failed to load records:', err);
+      }
+    }
+
+    // ==========================================
+    // Faculty / Admin Role-Based Access Control
+    // ==========================================
+    let adminToken = localStorage.getItem('smart_attendance_admin_token') || null;
+    let currentAdmin = JSON.parse(localStorage.getItem('smart_attendance_admin_user') || 'null');
+
+    function renderAuthStatus() {
+      const container = document.getElementById('authContainer');
+      if (!container) return;
+      if (adminToken && currentAdmin) {
+        container.innerHTML = `
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="badge-pill" style="background:rgba(99,102,241,0.2); color:#a5b4fc; border:1px solid rgba(99,102,241,0.35); font-size:0.75rem;">
+              👨‍🏫 ${escapeHtml(currentAdmin.full_name || currentAdmin.username)}
+            </span>
+            <button class="btn btn-secondary" onclick="handleAdminLogout()" style="padding:4px 8px; font-size:0.72rem; border-color:rgba(255,255,255,0.15);">
+              Logout
+            </button>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <button class="btn btn-secondary" onclick="openAdminLoginModal()" style="padding:5px 10px; font-size:0.78rem; border-color:rgba(99,102,241,0.4); color:#a5b4fc;">
+            🔐 Faculty Login
+          </button>
+        `;
+      }
+    }
+
+    function openAdminLoginModal(reason) {
+      const modal = document.getElementById('adminLoginModal');
+      const err = document.getElementById('adminLoginError');
+      if (err) {
+        if (reason) {
+          err.textContent = reason;
+          err.style.display = 'block';
+        } else {
+          err.style.display = 'none';
+        }
+      }
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeAdminLoginModal() {
+      const modal = document.getElementById('adminLoginModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('adminUsername').value.trim();
+      const p = document.getElementById('adminPassword').value.trim();
+      const err = document.getElementById('adminLoginError');
+      const btn = document.getElementById('btnAdminLogin');
+
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Authentication failed');
+
+        adminToken = data.token;
+        currentAdmin = data.admin;
+        localStorage.setItem('smart_attendance_admin_token', adminToken);
+        localStorage.setItem('smart_attendance_admin_user', JSON.stringify(currentAdmin));
+
+        renderAuthStatus();
+        closeAdminLoginModal();
+        alert(`Welcome, ${currentAdmin.full_name}! Faculty access unlocked.`);
+      } catch (e) {
+        if (err) {
+          err.textContent = e.message;
+          err.style.display = 'block';
+        } else {
+          alert(e.message);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign In as Faculty';
+      }
+    }
+
+    function handleAdminLogout() {
+      adminToken = null;
+      currentAdmin = null;
+      localStorage.removeItem('smart_attendance_admin_token');
+      localStorage.removeItem('smart_attendance_admin_user');
+      renderAuthStatus();
+      alert('Logged out. System returned to Student mode.');
+    }
+
+    async function deleteStudent(studentId) {
+      if (!adminToken) {
+        openAdminLoginModal('Faculty authorization required to delete enrolled students.');
+        return;
+      }
+      if (!confirm(`Are you sure you want to delete student '${studentId}'?`)) return;
+      try {
+        const res = await fetch(`/api/students/${studentId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete student');
+        alert(`Student '${studentId}' deleted.`);
+        loadStudents();
+        loadStats();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function exportCSV() {
+      if (!adminToken) {
+        openAdminLoginModal('Faculty authorization required to export official attendance records.');
+        return;
+      }
+      window.open('/api/attendance/export-csv', '_blank');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    // Initialize Auth Status on Page Load
+    renderAuthStatus();
+  </script>
+
+  <!-- Faculty / Admin Login Modal -->
+  <div id="adminLoginModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:1000; align-items:center; justify-content:center;">
+    <div class="panel-card" style="width: 380px; max-width: 90%; box-shadow: 0 20px 40px rgba(0,0,0,0.7); border: 1px solid rgba(99,102,241,0.4);">
+      <div class="panel-header" style="margin-bottom: 1.25rem;">
+        <h2 class="panel-title" style="font-size: 1.15rem;">
+          <span class="panel-title-icon">🔐</span>
+          Faculty / Admin Login
+        </h2>
+        <button type="button" onclick="closeAdminLoginModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem;">✕</button>
+      </div>
+      <form onsubmit="handleAdminLogin(event)">
+        <div class="form-group">
+          <label for="adminUsername">Username:</label>
+          <input type="text" id="adminUsername" required placeholder="admin" value="admin">
+        </div>
+        <div class="form-group">
+          <label for="adminPassword">Password:</label>
+          <input type="password" id="adminPassword" required placeholder="••••••••" value="admin123">
+          <div class="input-helper">Default Faculty Credentials: <code>admin</code> / <code>admin123</code></div>
+        </div>
+        <div id="adminLoginError" style="color:var(--accent-rose); font-size:0.8rem; margin-bottom:12px; display:none; background:rgba(244,63,94,0.1); padding:8px; border-radius:6px;"></div>
+        <button type="submit" class="btn btn-primary btn-block" id="btnAdminLogin">
+          Sign In as Faculty
+        </button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
