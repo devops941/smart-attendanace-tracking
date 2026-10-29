@@ -9,8 +9,8 @@ export default function Header({ isOnline = true, currentUser, userRole, onLogou
       <View style={styles.brand}>
         <Image
           source={require('../../assets/icon.png')}
-          style={styles.brandIconImage}
-          resizeMode="contain"
+          style={[styles.brandIconImage, { width: 36, height: 36 }]}
+          resizeMode="cover"
         />
         <View style={styles.brandTextContainer}>
           <Text style={styles.brandTitle} numberOfLines={1} ellipsizeMode="tail">
@@ -73,13 +73,14 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
-  brandIcon: {
+  brandIconImage: {
     width: 36,
     height: 36,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 9,
+    flexShrink: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+    backgroundColor: COLORS.bgSurfaceElevated,
   },
   brandTextContainer: {
     flex: 1,
