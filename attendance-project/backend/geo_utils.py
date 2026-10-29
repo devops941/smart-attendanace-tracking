@@ -37,6 +37,11 @@ def haversine_distance_meters(lat1: float, lon1: float, lat2: float, lon2: float
     return round(distance, 2)
 
 
+# Alias for backward and module compatibility
+calculate_haversine_distance = haversine_distance_meters
+
+
+
 def is_within_radius(
     user_lat: float, user_lon: float,
     zone_lat: float, zone_lon: float,

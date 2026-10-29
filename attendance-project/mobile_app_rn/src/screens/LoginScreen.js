@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,14 +13,15 @@ import {
   Image,
   Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PREF_SERVER_URL, IP_PRESETS } from '../constants/config';
 
 export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, deviceId }) {
-  const [roleTab, setRoleTab] = useState('student'); // 'student' | 'admin'
-  const [studentId, setStudentId] = useState('');
-  const [studentPassword, setStudentPassword] = useState('');
+  const [roleTab, setRoleTab] = useState('employee'); // 'employee' | 'admin'
+  const [empCode, setEmpCode] = useState('');
+  const [empPassword, setEmpPassword] = useState('');
 
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -30,8 +31,10 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
   const [customServerUrl, setCustomServerUrl] = useState(serverUrl || '');
   const [isTestingUrl, setIsTestingUrl] = useState(false);
 
+
+
   const handleApplyServerUrl = async (newUrl) => {
-    const trimmed = (newUrl || customServerUrl).trim().replace(/\/$/, '');
+    const trimmed = (newUrl || customServerUrl).trim().replace(/\/+$/, '');
     if (!trimmed) {
       Alert.alert('Invalid URL', 'Please enter a valid HTTP/HTTPS address.');
       return;
@@ -45,51 +48,52 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
         await AsyncStorage.setItem(PREF_SERVER_URL, trimmed);
         setCustomServerUrl(trimmed);
         setShowServerModal(false);
-        Alert.alert('Server Connected! 🟢', `Successfully connected to:\n${trimmed}\n\nFastAPI Engine: Online`);
+        Alert.alert('Server Connected', `Successfully connected to:\n${trimmed}\n\nFastAPI Engine: Online`);
       } else {
         Alert.alert('Server Returned Error', JSON.stringify(data));
       }
     } catch (err) {
       Alert.alert(
         'Cannot Reach Server',
-        `Could not reach:\n${trimmed}\n\n• Check your internet connection.\n• Verify the server is running.\n\nError: ${err.message}`
+        `Could not reach:\n${trimmed}\n\n• Check your Wi-Fi/network.\n• Ensure the backend is running.\n\nError: ${err.message}`
       );
     } finally {
       setIsTestingUrl(false);
     }
   };
 
-  const handleStudentLogin = async () => {
-    if (!studentId.trim()) {
-      Alert.alert('Required', 'Please enter your Student ID / Roll Number.');
+  const handleEmployeeLogin = async () => {
+    if (!empCode.trim()) {
+      Alert.alert('Required', 'Please enter your Employee Code / Badge ID.');
       return;
     }
-    if (!studentPassword.trim()) {
+    if (!empPassword.trim()) {
       Alert.alert('Required', 'Please enter your password.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${serverUrl}/api/student/login`, {
+      const cleanUrl = (serverUrl || '').trim().replace(/\/+$/, '');
+      let res = await fetch(`${cleanUrl}/api/employee/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
-          student_id: studentId.trim(),
-          password: studentPassword.trim(),
+          emp_code: empCode.trim(),
+          password: empPassword.trim(),
           device_id: deviceId || 'Mobile Device',
         }),
       });
 
-      const data = await res.json();
+      let data = await res.json();
       if (res.ok && data.success) {
         onLoginSuccess({
-          role: 'student',
+          role: 'employee',
           token: data.token,
-          user: data.student,
+          user: data.employee,
         });
       } else {
-        Alert.alert('Login Failed', data.detail || 'Invalid Student ID or password.');
+        Alert.alert('Login Failed', data.detail || 'Invalid Employee Code or password. (Default: office123)');
       }
     } catch (err) {
       Alert.alert('Network Error', `Could not reach server at ${serverUrl}.\n${err.message}`);
@@ -100,33 +104,55 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
 
   const handleAdminLogin = async () => {
     if (!adminUsername.trim() || !adminPassword.trim()) {
-      Alert.alert('Required', 'Please enter your username and password.');
+      Alert.alert('Required', 'Please enter HR admin username and password.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${serverUrl}/api/admin/login`, {
+      const cleanUrl = (serverUrl || '').trim().replace(/\/+$/, '');
+      
+      // Attempt login via /api/admin/login first, fallback to /api/faculty/login if needed
+      let res = await fetch(`${cleanUrl}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
           username: adminUsername.trim(),
           password: adminPassword.trim(),
+          device_id: deviceId || 'Mobile Device',
         }),
       });
 
-      const data = await res.json();
+      if (res.status === 404) {
+        res = await fetch(`${cleanUrl}/api/faculty/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            username: adminUsername.trim(),
+            password: adminPassword.trim(),
+            device_id: deviceId || 'Mobile Device',
+          }),
+        });
+      }
+
+      let data = await res.json();
       if (res.ok && data.success) {
+        const userObj = data.user || data.admin || {
+          username: adminUsername.trim(),
+          name: 'HR Administrator',
+          full_name: 'HR Administrator',
+          role: 'admin',
+        };
         onLoginSuccess({
           role: 'admin',
-          token: data.token,
-          user: data.admin,
+          token: data.token || `admin_token_${Date.now()}`,
+          user: userObj,
         });
       } else {
-        Alert.alert('Access Denied', data.detail || 'Invalid faculty credentials.');
+        Alert.alert('Admin Login Failed', data.detail || 'Invalid administrator credentials. (Default: admin / admin123)');
       }
     } catch (err) {
-      Alert.alert('Network Error', `Could not connect to ${serverUrl}.\n${err.message}`);
+      Alert.alert('Network Error', `Could not reach server at ${serverUrl}.\n${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -134,12 +160,11 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Top Minimal Server Status Bar */}
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Top Server Pill */}
         <View style={styles.topBar}>
-          <View style={{ flex: 1 }} />
           <TouchableOpacity
             style={styles.serverPill}
             onPress={() => setShowServerModal(true)}>
@@ -147,7 +172,7 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
             <Text style={styles.serverPillText} numberOfLines={1}>
               {serverUrl?.includes('onrender.com') ? 'Cloud Server' : 'Server Online'}
             </Text>
-            <Text style={styles.gearIcon}>⚙️</Text>
+            <Ionicons name="settings-outline" size={13} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -157,76 +182,134 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
             source={require('../../assets/icon.png')}
             style={styles.appLogo}
           />
-          <Text style={styles.appTitle}>Smart Attendance</Text>
-          <Text style={styles.appSubtitle}>Facial Biometrics & Campus Geofencing</Text>
+          <Text style={styles.appTitle}>Smart Office Attendance</Text>
+          <Text style={styles.appSubtitle}>Biometric Verification & Live Work Hours Tracking</Text>
         </View>
 
         {/* Role Selector Tabs */}
         <View style={styles.roleTabs}>
           <TouchableOpacity
-            style={[styles.roleTab, roleTab === 'student' && styles.roleTabActive]}
-            onPress={() => setRoleTab('student')}>
-            <Text style={[styles.roleTabText, roleTab === 'student' && styles.roleTabTextActive]}>
-              👨‍🎓 Student
-            </Text>
+            style={[styles.roleTab, roleTab === 'employee' && styles.roleTabActive]}
+            onPress={() => setRoleTab('employee')}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons
+                name="person-outline"
+                size={14}
+                color={roleTab === 'employee' ? '#fff' : COLORS.textMuted}
+              />
+              <Text style={[styles.roleTabText, roleTab === 'employee' && styles.roleTabTextActive]}>
+                Employee
+              </Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.roleTab, roleTab === 'admin' && styles.roleTabActive]}
             onPress={() => setRoleTab('admin')}>
-            <Text style={[styles.roleTabText, roleTab === 'admin' && styles.roleTabTextActive]}>
-              🏛️ Faculty / Admin
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons
+                name="shield-outline"
+                size={14}
+                color={roleTab === 'admin' ? '#fff' : COLORS.textMuted}
+              />
+              <Text style={[styles.roleTabText, roleTab === 'admin' && styles.roleTabTextActive]}>
+                HR / Admin
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
 
         {/* Card Form */}
         <View style={styles.card}>
-          {roleTab === 'student' ? (
+          {roleTab === 'employee' ? (
             <View>
-              <Text style={styles.cardHeading}>Student Portal</Text>
-              <Text style={styles.cardSub}>Sign in to verify your hourly attendance.</Text>
+              <Text style={styles.cardHeading}>Employee Sign-In</Text>
+              <Text style={styles.cardSub}>Punch in/out and track your daily work hours.</Text>
 
-              <Text style={styles.inputLabel}>STUDENT ROLL NUMBER / ID</Text>
+
+
+              <Text style={styles.inputLabel}>EMPLOYEE CODE / BADGE ID</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. STU101"
+                placeholder="e.g. EMP003"
                 placeholderTextColor={COLORS.textDim}
-                value={studentId}
-                onChangeText={setStudentId}
+                value={empCode}
+                onChangeText={setEmpCode}
                 autoCapitalize="characters"
               />
 
               <Text style={styles.inputLabel}>PASSWORD</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter password"
+                placeholder="Default: office123"
                 placeholderTextColor={COLORS.textDim}
-                value={studentPassword}
-                onChangeText={setStudentPassword}
+                value={empPassword}
+                onChangeText={setEmpPassword}
                 secureTextEntry
               />
 
               <TouchableOpacity
                 style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-                onPress={handleStudentLogin}
+                onPress={handleEmployeeLogin}
                 disabled={isLoading}>
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.loginButtonText}>Sign In as Student →</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.loginButtonText}>Sign In to Employee Portal</Text>
+                    <Ionicons name="arrow-forward" size={15} color="#fff" />
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
           ) : (
             <View>
-              <Text style={styles.cardHeading}>Faculty & Admin Sign-In</Text>
-              <Text style={styles.cardSub}>Manage enrollments, GPS boundaries & master audits.</Text>
+              <Text style={styles.cardHeading}>HR Administrator Sign-In</Text>
+              <Text style={styles.cardSub}>Manage employee records, office geofences & payroll timesheets.</Text>
+
+              {/* Quick Select Admin */}
+              <View style={styles.quickBox}>
+                <View style={styles.quickHeader}>
+                  <Ionicons name="shield-checkmark" size={13} color="#818CF8" />
+                  <Text style={[styles.quickTitle, { color: '#818CF8' }]}>ADMINISTRATOR PROFILE (TAP TO AUTO-FILL)</Text>
+                </View>
+                <View style={styles.quickChipsWrap}>
+                  <TouchableOpacity
+                    style={[styles.quickChip, adminUsername === 'admin' && styles.quickChipActiveAdmin]}
+                    onPress={() => {
+                      setAdminUsername('admin');
+                      setAdminPassword('admin123');
+                    }}>
+                    <Ionicons
+                      name="shield"
+                      size={16}
+                      color={adminUsername === 'admin' ? '#fff' : '#818CF8'}
+                    />
+                    <View style={{ flexShrink: 1 }}>
+                      <Text
+                        style={[
+                          styles.quickChipName,
+                          adminUsername === 'admin' && styles.quickChipTextActive,
+                        ]}>
+                        HR Administrator
+                      </Text>
+                      <Text
+                        style={[
+                          styles.quickChipSub,
+                          adminUsername === 'admin' && styles.quickChipSubActive,
+                        ]}>
+                        admin • admin123
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.quickHint}>Default credentials: admin / admin123</Text>
+              </View>
 
               <Text style={styles.inputLabel}>USERNAME</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter username"
+                placeholder="admin"
                 placeholderTextColor={COLORS.textDim}
                 value={adminUsername}
                 onChangeText={setAdminUsername}
@@ -236,7 +319,7 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
               <Text style={styles.inputLabel}>PASSWORD</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter password"
+                placeholder="admin123"
                 placeholderTextColor={COLORS.textDim}
                 value={adminPassword}
                 onChangeText={setAdminPassword}
@@ -250,22 +333,31 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.loginButtonText}>Unlock Admin Dashboard 🔓</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="lock-open-outline" size={16} color="#fff" />
+                    <Text style={styles.loginButtonText}>Unlock HR Dashboard</Text>
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* Timetable Overview Footer */}
+        {/* Corporate Shift Overview Footer */}
         <View style={styles.timetablePreview}>
-          <Text style={styles.timetableTitle}>ACADEMIC TIMETABLE (09:00 AM – 05:00 PM)</Text>
-          <Text style={styles.timetableRow}>• Morning Sessions: 09:00 AM – 01:00 PM (Periods 1-4)</Text>
-          <Text style={[styles.timetableRow, { color: COLORS.accentAmber }]}>• Lunch Break: 01:00 PM – 02:00 PM (1 Hour)</Text>
-          <Text style={styles.timetableRow}>• Afternoon Sessions: 02:00 PM – 05:00 PM (Periods 5-7)</Text>
-          <Text style={[styles.timetableRow, { color: COLORS.accentCyan, marginTop: 4 }]}>
-            ⏱️ 0-10m On-Time | 10-30m Late | &gt;30m Locked Out
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <Ionicons name="business-outline" size={14} color="#94A3B8" />
+            <Text style={styles.timetableTitle}>CORPORATE SHIFT (09:00 AM – 06:00 PM)</Text>
+          </View>
+          <Text style={styles.timetableRow}>• Standard Work Shift: 9.0 Hours (incl. 1 Hr Lunch)</Text>
+          <Text style={[styles.timetableRow, { color: COLORS.accentAmber }]}>• Flexible Lunch / Tea Break Tracking</Text>
+          <Text style={styles.timetableRow}>• Overtime auto-calculated when Net Hours &gt; 8.0 hrs</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 }}>
+            <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.accentCyan} />
+            <Text style={[styles.timetableRow, { color: COLORS.accentCyan, marginVertical: 0 }]}>
+              128-d Biometric Scan + GPS Geofence + Mock GPS Protection
+            </Text>
+          </View>
         </View>
       </ScrollView>
 
@@ -280,7 +372,7 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Server Configuration</Text>
               <TouchableOpacity onPress={() => setShowServerModal(false)} style={styles.closeBtn}>
-                <Text style={{ color: COLORS.textMuted, fontSize: 16 }}>✕</Text>
+                <Ionicons name="close" size={18} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -320,7 +412,10 @@ export default function LoginScreen({ serverUrl, setServerUrl, onLoginSuccess, d
               {isTestingUrl ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.saveServerBtnText}>Test & Connect Server</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Ionicons name="wifi-outline" size={15} color="#fff" />
+                  <Text style={styles.saveServerBtnText}>Test & Connect Server</Text>
+                </View>
               )}
             </TouchableOpacity>
           </View>
@@ -347,6 +442,7 @@ const styles = StyleSheet.create({
   serverPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -359,15 +455,10 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: '#10B981',
-    marginRight: 6,
   },
   serverPillText: {
     color: COLORS.textMuted,
     fontSize: 11,
-    marginRight: 4,
-  },
-  gearIcon: {
-    fontSize: 10,
   },
   brandBox: {
     alignItems: 'center',
@@ -440,7 +531,75 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted,
     marginTop: 2,
-    marginBottom: 18,
+    marginBottom: 16,
+  },
+  quickBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+    marginBottom: 16,
+  },
+  quickHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 8,
+  },
+  quickTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.accentCyan,
+    letterSpacing: 0.6,
+  },
+  quickChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.bgSurfaceElevated,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.09)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flex: 1,
+    minWidth: 120,
+  },
+  quickChipActive: {
+    borderColor: COLORS.accentCyan,
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+  },
+  quickChipActiveAdmin: {
+    borderColor: '#818CF8',
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+  },
+  quickChipName: {
+    color: '#fff',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  quickChipSub: {
+    color: COLORS.textDim,
+    fontSize: 9.5,
+    marginTop: 1,
+  },
+  quickChipTextActive: {
+    color: '#fff',
+  },
+  quickChipSubActive: {
+    color: '#E2E8F0',
+  },
+  quickHint: {
+    color: COLORS.textDim,
+    fontSize: 10,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   inputLabel: {
     color: COLORS.textDim,
@@ -465,6 +624,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 4,
   },
   adminLoginButton: {
@@ -491,7 +651,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.6,
-    marginBottom: 6,
   },
   timetableRow: {
     color: COLORS.textMuted,
@@ -566,6 +725,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   saveServerBtnText: {
     color: '#fff',

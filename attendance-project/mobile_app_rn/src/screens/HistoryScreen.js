@@ -1,285 +1,387 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Alert,
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  TextInput,
 } from 'react-native';
 import { COLORS } from '../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function HistoryScreen({
   serverUrl,
   userRole,
   currentUser,
   records,
-  students,
+  employees,
+  onRefreshHistory,
 }) {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date();
-    return d.toISOString().split('T')[0];
-  });
-  const [dayHistory, setDayHistory] = useState(null);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState(
-    currentUser?.student_id || (students.length > 0 ? students[0].student_id : '')
+  const staffList = employees || [];
+  const [officeTimesheets, setOfficeTimesheets] = useState([]);
+  const [isLoadingTimesheets, setIsLoadingTimesheets] = useState(false);
+  const [selectedEmpCode, setSelectedEmpCode] = useState(
+    currentUser?.emp_code || (staffList.length > 0 ? staffList[0].emp_code : '')
   );
-  const [viewMode, setViewMode] = useState(userRole === 'admin' ? 'audit' : 'student'); // 'student' | 'audit'
+  const [viewMode, setViewMode] = useState('timesheets'); // 'timesheets' | 'audit'
+  const handleDeleteTimesheetRecord = (id, empName, date) => {
+    Alert.alert(
+      'Delete Timesheet Record',
+      `Permanently delete timesheet log #${id} for ${empName || 'Employee'} on ${date}?\n\nThis will remove the shift and its punch logs.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await fetch(`${serverUrl}/api/office/timesheets/${id}`, {
+                method: 'DELETE',
+                adminDeleteRecordBtn: {
+    padding: 5,
+    borderRadius: 6,
+    backgroundColor: 'rgba(244,63,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,63,94,0.25)',
+  },
+});
+              const data = await res.json();
+              if (res.ok) {
+                setOfficeTimesheets((prev) => prev.filter((item) => item.id !== id));
+                if (onRefreshHistory) onRefreshHistory();
+              } else {
+                Alert.alert('Delete Failed', data.detail || 'Could not delete timesheet record.');
+              }
+            } catch (err) {
+              Alert.alert('Network Error', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAuditRecord = (id, name, timestamp) => {
+    Alert.alert(
+      'Delete Audit Record',
+      `Delete raw verification audit log #${id} (${name || 'Staff Member'} - ${timestamp})?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await fetch(`${serverUrl}/api/attendance/records/${id}`, {
+                method: 'DELETE',
+                adminDeleteRecordBtn: {
+    padding: 5,
+    borderRadius: 6,
+    backgroundColor: 'rgba(244,63,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,63,94,0.25)',
+  },
+});
+              const data = await res.json();
+              if (res.ok) {
+                if (onRefreshHistory) onRefreshHistory();
+              } else {
+                Alert.alert('Delete Failed', data.detail || 'Could not delete audit record.');
+              }
+            } catch (err) {
+              Alert.alert('Network Error', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
 
   useEffect(() => {
-    if (selectedStudentId) {
-      fetchDayHistory(selectedStudentId, selectedDate);
-    }
-  }, [selectedStudentId, selectedDate]);
+    fetchTimesheets();
+  }, [selectedEmpCode, serverUrl]);
 
-  const fetchDayHistory = async (stuId, dateStr) => {
-    setIsLoadingHistory(true);
+  const fetchTimesheets = async () => {
+    setIsLoadingTimesheets(true);
     try {
-      const res = await fetch(
-        `${serverUrl}/api/attendance/student-day-history?student_id=${encodeURIComponent(
-          stuId
-        )}&date=${encodeURIComponent(dateStr)}`
-      );
+      let url = `${serverUrl}/api/office/timesheets`;
+      if (userRole !== 'admin' && selectedEmpCode) {
+        url += `?emp_code=${encodeURIComponent(selectedEmpCode)}`;
+      }
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setDayHistory(data);
+        setOfficeTimesheets(Array.isArray(data) ? data : []);
       }
     } catch (err) {
-      console.warn('Failed to fetch day history:', err);
+      console.warn('Failed to fetch office timesheets:', err);
     } finally {
-      setIsLoadingHistory(false);
+      setIsLoadingTimesheets(false);
     }
   };
 
-  const handleShiftDate = (days) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + days);
-    setSelectedDate(d.toISOString().split('T')[0]);
-  };
-
-  const setDateToday = () => {
-    setSelectedDate(new Date().toISOString().split('T')[0]);
-  };
-
-  const setDateYesterday = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+  const formatIsoTime = (isoStr) => {
+    if (!isoStr) return '--:--';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch (_) {
+      return isoStr.substring(11, 16) || isoStr;
+    }
   };
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      {/* Admin Mode Toggle */}
-      {userRole === 'admin' && (
-        <View style={styles.toggleRow}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, viewMode === 'student' && styles.toggleBtnActive]}
-            onPress={() => setViewMode('student')}>
-            <Text style={[styles.toggleText, viewMode === 'student' && styles.toggleTextActive]}>
-              📅 Day Attendance View
+      {/* Navigation Mode Bar */}
+      <View style={styles.toggleRow}>
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewMode === 'timesheets' && styles.toggleBtnActive]}
+          onPress={() => setViewMode('timesheets')}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons
+              name="briefcase-outline"
+              size={14}
+              color={viewMode === 'timesheets' ? '#fff' : COLORS.textMuted}
+            />
+            <Text style={[styles.toggleText, viewMode === 'timesheets' && styles.toggleTextActive]}>
+              Work Timesheets
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleBtn, viewMode === 'audit' && styles.toggleBtnActive]}
-            onPress={() => setViewMode('audit')}>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewMode === 'audit' && styles.toggleBtnActive]}
+          onPress={() => setViewMode('audit')}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={14}
+              color={viewMode === 'audit' ? '#fff' : COLORS.textMuted}
+            />
             <Text style={[styles.toggleText, viewMode === 'audit' && styles.toggleTextActive]}>
-              📑 Master Audit Logs
+              Master Audits
             </Text>
-          </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Admin Employee Filter Switcher */}
+      {userRole === 'admin' && staffList.length > 0 && viewMode === 'timesheets' && (
+        <View style={styles.employeeSwitcher}>
+          <Text style={styles.switcherLabel}>FILTER BY EMPLOYEE:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+            <TouchableOpacity
+              style={[
+                styles.employeeChip,
+                !selectedEmpCode && styles.employeeChipActive,
+              ]}
+              onPress={() => setSelectedEmpCode('')}>
+              <Text
+                style={[
+                  styles.employeeChipText,
+                  !selectedEmpCode && styles.employeeChipTextActive,
+                ]}>
+                All Staff
+              </Text>
+            </TouchableOpacity>
+            {staffList.map((s) => {
+              const code = s.emp_code || s.student_id;
+              return (
+                <TouchableOpacity
+                  key={code}
+                  style={[
+                    styles.employeeChip,
+                    selectedEmpCode === code && styles.employeeChipActive,
+                  ]}
+                  onPress={() => setSelectedEmpCode(code)}>
+                  <Text
+                    style={[
+                      styles.employeeChipText,
+                      selectedEmpCode === code && styles.employeeChipTextActive,
+                    ]}>
+                    {s.name} ({code})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
       )}
 
-      {/* VIEW MODE 1: DAY ATTENDANCE TIMELINE */}
-      {viewMode === 'student' && (
+      {/* VIEW 1: CORPORATE WORK TIMESHEETS */}
+      {viewMode === 'timesheets' && (
         <View>
-          {/* Admin Student Switcher */}
-          {userRole === 'admin' && students.length > 0 && (
-            <View style={styles.studentSwitcher}>
-              <Text style={styles.switcherLabel}>SELECT STUDENT TO INSPECT:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
-                {students.map((s) => (
-                  <TouchableOpacity
-                    key={s.student_id}
-                    style={[
-                      styles.studentChip,
-                      selectedStudentId === s.student_id && styles.studentChipActive,
-                    ]}
-                    onPress={() => setSelectedStudentId(s.student_id)}>
-                    <Text
-                      style={[
-                        styles.studentChipText,
-                        selectedStudentId === s.student_id && styles.studentChipTextActive,
-                      ]}>
-                      {s.name} ({s.student_id})
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Date Selector Navigation Bar */}
-          <View style={styles.dateBar}>
-            <View style={styles.dateNavButtons}>
-              <TouchableOpacity style={styles.dateShiftBtn} onPress={() => handleShiftDate(-1)}>
-                <Text style={styles.dateShiftText}>◀ Previous</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.currentDateText}>{selectedDate}</Text>
-
-              <TouchableOpacity style={styles.dateShiftBtn} onPress={() => handleShiftDate(1)}>
-                <Text style={styles.dateShiftText}>Next ▶</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.quickPills}>
-              <TouchableOpacity style={styles.quickPill} onPress={setDateToday}>
-                <Text style={styles.quickPillText}>Today</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickPill} onPress={setDateYesterday}>
-                <Text style={styles.quickPillText}>Yesterday</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={styles.timelineSectionTitle}>Daily Timesheet Logs ({officeTimesheets.length})</Text>
+            <TouchableOpacity onPress={fetchTimesheets} style={styles.refreshPill}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="refresh" size={12} color={COLORS.accentCyan} />
+                <Text style={{ color: COLORS.accentCyan, fontSize: 11.5, fontWeight: 'bold' }}>Refresh</Text>
+              </View>
+            </TouchableOpacity>
           </View>
 
-          {/* Day Scoreboard Summary Card */}
-          {isLoadingHistory ? (
+          {isLoadingTimesheets ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator color={COLORS.primaryLight} size="large" />
-              <Text style={styles.loadingText}>Computing Day Attendance...</Text>
+              <ActivityIndicator color={COLORS.accentCyan} size="large" />
+              <Text style={styles.loadingText}>Loading Daily Timesheets...</Text>
             </View>
-          ) : dayHistory ? (
-            <View>
-              <View style={styles.scoreCard}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View>
-                    <Text style={styles.scoreCardLabel}>HOURLY ATTENDANCE SCORE</Text>
-                    <Text style={styles.scoreCardMain}>
-                      {dayHistory.attended_count} / {dayHistory.total_periods} Hours Attended
-                    </Text>
+          ) : officeTimesheets.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="time-outline" size={38} color={COLORS.textMuted} style={{ alignSelf: 'center', marginBottom: 8 }} />
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>
+                No Timesheet Records Found
+              </Text>
+              <Text style={{ color: COLORS.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                Perform morning Clock-In from the Check-In tab inside the office geofence to record your shift.
+              </Text>
+            </View>
+          ) : (
+            officeTimesheets.map((t, idx) => {
+              const isCompleted = t.clock_out_time !== null;
+              const isLate = t.arrival_status === 'LATE';
+              const isOvertime = t.is_overtime === 1;
+
+              return (
+                <View key={t.id || idx} style={styles.timesheetCard}>
+                  {/* Header: Date + Status Badge */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={{ color: '#fff', fontSize: 14.5, fontWeight: 'bold' }}>
+                        {t.date} {t.emp_name ? `• ${t.emp_name}` : ''}
+                      </Text>
+                      <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 1 }}>
+                        {t.department || 'Operations'} • {t.emp_code}
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      {userRole === 'admin' && (
+                        <TouchableOpacity
+                          style={styles.adminDeleteRecordBtn}
+                          onPress={() => handleDeleteTimesheetRecord(t.id, t.emp_name || t.emp_code, t.date)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name="trash-outline" size={14} color={COLORS.accentRose} />
+                        </TouchableOpacity>
+                      )}
+
+                      <View
+                        style={[
+                          styles.statusBadge,
+                        isCompleted
+                          ? { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: COLORS.accentEmerald }
+                          : { backgroundColor: 'rgba(6,182,212,0.15)', borderColor: COLORS.accentCyan },
+                        { flexDirection: 'row', alignItems: 'center', gap: 4 },
+                      ]}>
+                      <Ionicons
+                        name={isCompleted ? 'checkmark-done' : 'radio-button-on'}
+                        size={11}
+                        color={isCompleted ? COLORS.accentEmerald : COLORS.accentCyan}
+                      />
+                      <Text
+                        style={[
+                          styles.statusBadgeText,
+                          { color: isCompleted ? COLORS.accentEmerald : COLORS.accentCyan },
+                        ]}>
+                        {isCompleted ? 'COMPLETED' : 'IN OFFICE'}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.percentBadge}>
-                    <Text style={styles.percentText}>{dayHistory.attendance_percentage}%</Text>
                   </View>
-                </View>
 
-                {/* Visual Progress Bar */}
-                <View style={styles.progressBarTrack}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${dayHistory.attendance_percentage}%` },
-                      dayHistory.attendance_percentage >= 75
-                        ? { backgroundColor: COLORS.accentEmerald }
-                        : dayHistory.attendance_percentage >= 50
-                        ? { backgroundColor: COLORS.accentAmber }
-                        : { backgroundColor: COLORS.accentRose },
-                    ]}
-                  />
-                </View>
+                  {/* Working Hours Metric Highlight */}
+                  <View style={styles.timesheetMetricsGrid}>
+                    <View style={styles.timesheetMetricItem}>
+                      <Text style={styles.timesheetMetricLabel}>NET WORK TIME</Text>
+                      <Text style={[styles.timesheetMetricValue, { color: COLORS.accentEmerald }]}>
+                        {t.net_work_hours ? `${Number(t.net_work_hours).toFixed(2)} hrs` : 'In Progress'}
+                      </Text>
+                    </View>
 
-                {/* Score Breakdown Pills */}
-                <View style={styles.breakdownRow}>
-                  <View style={[styles.kpiPill, { borderColor: 'rgba(16,185,129,0.3)' }]}>
-                    <Text style={[styles.kpiValue, { color: COLORS.accentEmerald }]}>
-                      {dayHistory.on_time_count}
-                    </Text>
-                    <Text style={styles.kpiLabel}>On-Time</Text>
+                    <View style={styles.timesheetMetricItem}>
+                      <Text style={styles.timesheetMetricLabel}>BREAK DURATION</Text>
+                      <Text style={[styles.timesheetMetricValue, { color: COLORS.accentAmber }]}>
+                        {t.total_break_minutes || 0} mins
+                      </Text>
+                    </View>
+
+                    <View style={styles.timesheetMetricItem}>
+                      <Text style={styles.timesheetMetricLabel}>PUNCTUALITY</Text>
+                      <Text
+                        style={[
+                          styles.timesheetMetricValue,
+                          { color: isLate ? COLORS.accentAmber : COLORS.accentCyan },
+                        ]}>
+                        {isLate ? `Late (+${t.minutes_late}m)` : 'On-Time'}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={[styles.kpiPill, { borderColor: 'rgba(245,158,11,0.3)' }]}>
-                    <Text style={[styles.kpiValue, { color: COLORS.accentAmber }]}>
-                      {dayHistory.late_count}
-                    </Text>
-                    <Text style={styles.kpiLabel}>Late (&lt;30m)</Text>
-                  </View>
-                  <View style={[styles.kpiPill, { borderColor: 'rgba(244,63,94,0.3)' }]}>
-                    <Text style={[styles.kpiValue, { color: COLORS.accentRose }]}>
-                      {dayHistory.missed_count}
-                    </Text>
-                    <Text style={styles.kpiLabel}>Missed / Locked</Text>
-                  </View>
-                </View>
-              </View>
 
-              {/* 8-Hour Timetable Breakdown */}
-              <Text style={styles.timelineSectionTitle}>Period Breakdown (8-Hour Campus Schedule)</Text>
-              {dayHistory.timeline.map((item, idx) => {
-                const isBreak = item.is_break;
-                const isPresent = item.status === 'ON_TIME';
-                const isLate = item.status === 'LATE';
-                const isMissed = item.status === 'MISSED' || item.status === 'LOCKED_OUT';
-
-                let cardBorder = COLORS.border;
-                let badgeColor = COLORS.textMuted;
-                let badgeBg = 'rgba(255,255,255,0.05)';
-
-                if (isBreak) {
-                  badgeColor = COLORS.accentCyan;
-                  badgeBg = 'rgba(56,189,248,0.15)';
-                } else if (isPresent) {
-                  cardBorder = COLORS.accentEmerald;
-                  badgeColor = COLORS.accentEmerald;
-                  badgeBg = 'rgba(16,185,129,0.15)';
-                } else if (isLate) {
-                  cardBorder = COLORS.accentAmber;
-                  badgeColor = COLORS.accentAmber;
-                  badgeBg = 'rgba(245,158,11,0.15)';
-                } else if (isMissed) {
-                  cardBorder = COLORS.accentRose;
-                  badgeColor = COLORS.accentRose;
-                  badgeBg = 'rgba(244,63,94,0.15)';
-                }
-
-                return (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.periodCard,
-                      { borderLeftColor: isBreak ? COLORS.accentCyan : cardBorder },
-                    ]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={{ fontSize: 16 }}>
-                          {isBreak ? '☕' : isPresent ? '🟢' : isLate ? '🟡' : isMissed ? '🔴' : '⏳'}
-                        </Text>
-                        <View>
-                          <Text style={styles.periodCardName}>{item.name}</Text>
-                          <Text style={styles.periodCardTime}>
-                            {item.start_time} - {item.end_time}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={[styles.periodStatusTag, { backgroundColor: badgeBg }]}>
-                        <Text style={[styles.periodStatusText, { color: badgeColor }]}>
-                          {item.status_label}
+                  {/* Clock In / Out Timeline details */}
+                  <View style={styles.timesheetTimeRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="sunny-outline" size={15} color={COLORS.accentCyan} />
+                      <View>
+                        <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>CLOCK-IN</Text>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                          {formatIsoTime(t.clock_in_time)}
                         </Text>
                       </View>
                     </View>
 
-                    {item.timestamp && (
-                      <Text style={styles.verifiedTimestamp}>
-                        Verified at: {item.timestamp}
-                        {item.minutes_late > 0 ? ` (${item.minutes_late}m late)` : ' (On-Time)'}
-                      </Text>
+                    <View style={{ height: 24, width: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="moon-outline" size={15} color={COLORS.primaryLight} />
+                      <View>
+                        <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>CLOCK-OUT</Text>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                          {t.clock_out_time ? formatIsoTime(t.clock_out_time) : 'Active Inside'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {isOvertime && (
+                      <>
+                        <View style={{ height: 24, width: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Ionicons name="flash-outline" size={15} color={COLORS.accentAmber} />
+                          <View>
+                            <Text style={{ color: COLORS.accentAmber, fontSize: 10 }}>OVERTIME</Text>
+                            <Text style={{ color: COLORS.accentAmber, fontSize: 12, fontWeight: 'bold' }}>
+                              +{t.overtime_hours || 0} hrs
+                            </Text>
+                          </View>
+                        </View>
+                      </>
                     )}
                   </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={{ color: COLORS.textMuted, fontSize: 13, textAlign: 'center' }}>
-                No attendance records for this date.
-              </Text>
-            </View>
+
+                  {/* Geofence Branch Info */}
+                  <View style={styles.timesheetFooter}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="location-outline" size={12} color={COLORS.textDim} />
+                      <Text style={{ color: COLORS.textDim, fontSize: 10.5 }}>
+                        {t.branch_name || t.clock_in_zone_name || 'Main Corporate HQ'}
+                      </Text>
+                    </View>
+                    {t.audit_notes ? (
+                      <Text style={{ color: COLORS.textDim, fontSize: 10.5, fontStyle: 'italic' }}>
+                        {t.audit_notes}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })
           )}
         </View>
       )}
 
-      {/* VIEW MODE 2: MASTER AUDIT LOGS (Admin / Faculty) */}
+      {/* VIEW 2: MASTER AUDIT LOGS */}
       {viewMode === 'audit' && (
         <View>
           <Text style={styles.timelineSectionTitle}>Master Verification Audit Trail ({records.length})</Text>
@@ -295,30 +397,39 @@ export default function HistoryScreen({
               return (
                 <View key={i} style={[styles.auditCard, isPass ? styles.auditPass : styles.auditFail]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13.5 }}>
-                      {r.student_name}
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13.5, flex: 1 }}>
+                      {r.name || r.emp_name || r.student_name || 'Staff Member'}
                     </Text>
-                    <View style={[styles.auditTag, isPass ? styles.tagPass : styles.tagFail]}>
-                      <Text style={[styles.tagText, isPass ? { color: COLORS.accentEmerald } : { color: COLORS.accentRose }]}>
-                        {r.arrival_status || r.status}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      {userRole === 'admin' && (
+                        <TouchableOpacity
+                          style={styles.adminDeleteRecordBtn}
+                          onPress={() => handleDeleteAuditRecord(r.id, r.name || r.student_id, r.timestamp)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name="trash-outline" size={13} color={COLORS.accentRose} />
+                        </TouchableOpacity>
+                      )}
+                      <View style={[styles.auditTag, isPass ? styles.tagPass : styles.tagFail]}>
+                      <Text style={[styles.tagText, { color: isPass ? COLORS.accentEmerald : COLORS.accentRose }]}>
+                        {r.status}
                       </Text>
                     </View>
                   </View>
-                  <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 2 }}>
-                    {r.student_id} • {r.period_name || 'Period'} • {r.timestamp}
+                  </View>
+
+                  <Text style={{ color: COLORS.textMuted, fontSize: 11.5, marginTop: 2 }}>
+                    ID: {r.emp_code || r.student_id} • {r.timestamp}
                   </Text>
+
                   <View style={styles.metricsRow}>
                     <Text style={styles.metricText}>
-                      GPS: {r.distance_to_zone_meters != null ? `${r.distance_to_zone_meters}m` : 'N/A'}
+                      Match: <Text style={{ color: '#fff', fontWeight: 'bold' }}>{r.confidence_score}%</Text>
                     </Text>
                     <Text style={styles.metricText}>
-                      Face: {r.face_similarity_score != null ? `${r.face_similarity_score}%` : 'N/A'}
+                      Liveness: <Text style={{ color: '#fff', fontWeight: 'bold' }}>{r.liveness_score}%</Text>
                     </Text>
                     <Text style={styles.metricText}>
-                      PAD: {r.liveness_score != null ? `${r.liveness_score}%` : 'N/A'}
-                    </Text>
-                    <Text style={styles.metricText}>
-                      Device: {r.device_verified ? 'OK' : 'Proxy'}
+                      Device: <Text style={{ color: '#fff', fontWeight: 'bold' }}>{r.device_id || 'OK'}</Text>
                     </Text>
                   </View>
                 </View>
@@ -332,213 +443,121 @@ export default function HistoryScreen({
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { padding: 18, paddingBottom: 34 },
+  scrollContent: { padding: 18, paddingBottom: 35 },
   toggleRow: {
     flexDirection: 'row',
     backgroundColor: COLORS.bgSurface,
+    padding: 4,
     borderRadius: 12,
-    padding: 3,
     marginBottom: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 9,
-  },
-  toggleBtnActive: {
-    backgroundColor: COLORS.primary,
-  },
-  toggleText: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  toggleTextActive: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  studentSwitcher: {
+  toggleBtn: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 8 },
+  toggleBtnActive: { backgroundColor: COLORS.primary },
+  toggleText: { color: COLORS.textMuted, fontSize: 12, fontWeight: 'bold' },
+  toggleTextActive: { color: '#fff' },
+
+  employeeSwitcher: {
     backgroundColor: COLORS.bgSurface,
-    borderRadius: 12,
     padding: 12,
-    marginBottom: 12,
+    borderRadius: 12,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  switcherLabel: {
-    color: COLORS.textDim,
-    fontSize: 9.5,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  studentChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: 10,
+  switcherLabel: { color: COLORS.textDim, fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5 },
+  employeeChip: {
+    backgroundColor: COLORS.bgSurfaceElevated,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 20,
     marginRight: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  studentChipActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    borderColor: COLORS.primaryLight,
+  employeeChipActive: {
+    borderColor: COLORS.accentCyan,
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
   },
-  studentChipText: { color: COLORS.textMuted, fontSize: 11 },
-  studentChipTextActive: { color: '#fff', fontWeight: 'bold' },
-  dateBar: {
-    backgroundColor: COLORS.bgSurface,
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 14,
-  },
-  dateNavButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dateShiftBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 8,
-  },
-  dateShiftText: {
-    color: COLORS.accentCyan,
-    fontSize: 11.5,
-    fontWeight: 'bold',
-  },
-  currentDateText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  quickPills: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  quickPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-  },
-  quickPillText: {
-    color: COLORS.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  loadingBox: {
-    padding: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    marginTop: 10,
-  },
-  scoreCard: {
-    backgroundColor: COLORS.bgSurface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
-  },
-  scoreCardLabel: {
-    color: COLORS.textDim,
-    fontSize: 9.5,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  scoreCardMain: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  percentBadge: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.4)',
-  },
-  percentText: {
-    color: COLORS.primaryLight,
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 4,
-    marginVertical: 12,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  breakdownRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  kpiPill: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 10,
-    padding: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  kpiValue: { fontSize: 16, fontWeight: 'bold' },
-  kpiLabel: { color: COLORS.textDim, fontSize: 10, marginTop: 1 },
+  employeeChipText: { color: COLORS.textMuted, fontSize: 11.5 },
+  employeeChipTextActive: { color: COLORS.accentCyan, fontWeight: 'bold' },
+
   timelineSectionTitle: {
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
-    marginBottom: 10,
     letterSpacing: 0.3,
   },
-  periodCard: {
-    backgroundColor: COLORS.bgSurface,
+  refreshPill: {
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    borderLeftWidth: 4,
+  },
+
+  // Corporate Timesheet Cards
+  timesheetCard: {
+    backgroundColor: COLORS.bgSurface,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  periodCardName: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
-  periodCardTime: { color: COLORS.textDim, fontSize: 11, marginTop: 1 },
-  periodStatusTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
   },
-  periodStatusText: { fontSize: 10.5, fontWeight: '700' },
-  verifiedTimestamp: {
+  statusBadgeText: { fontSize: 10.5, fontWeight: 'bold' },
+
+  timesheetMetricsGrid: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.bgSurfaceElevated,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  timesheetMetricItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  timesheetMetricLabel: {
     color: COLORS.textDim,
-    fontSize: 10.5,
-    marginTop: 6,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.04)',
+    fontSize: 9.5,
+    fontWeight: 'bold',
+    marginBottom: 3,
   },
+  timesheetMetricValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+
+  timesheetTimeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  timesheetFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingTop: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  },
+
+  // Audits
   auditCard: {
     backgroundColor: COLORS.bgSurface,
     padding: 12,
@@ -561,11 +580,21 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.05)',
   },
   metricText: { color: COLORS.textDim, fontSize: 10.5 },
+
+  loadingBox: { padding: 30, alignItems: 'center' },
+  loadingText: { color: COLORS.textMuted, fontSize: 12, marginTop: 8 },
   emptyCard: {
     backgroundColor: COLORS.bgSurface,
     padding: 24,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  adminDeleteRecordBtn: {
+    padding: 5,
+    borderRadius: 6,
+    backgroundColor: 'rgba(244,63,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,63,94,0.25)',
   },
 });

@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Optional, List
 import numpy as np
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Response
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel
@@ -76,25 +76,51 @@ class StudentLoginRequest(BaseModel):
     device_id: Optional[str] = None
 
 
+class EmployeeLoginRequest(BaseModel):
+    emp_code: str
+    password: str
+    device_id: Optional[str] = None
+
+
+class BranchCreateRequest(BaseModel):
+    name: str
+    address: str
+    latitude: float
+    longitude: float
+    radius_meters: float = 100.0
+    office_wifi_bssid: Optional[str] = None
+    office_public_ip: Optional[str] = None
+
+
+class BreakRequest(BaseModel):
+    emp_code: str
+    break_type: Optional[str] = "LUNCH"
+
+
 # ==========================================
 # Frontend & Authentication Endpoints
 # ==========================================
 
 @app.post("/api/admin/login")
+@app.post("/api/faculty/login")
 def admin_login(creds: AdminLoginRequest):
     """Authenticates faculty/admin and generates access token for role-based access."""
     admin = database.verify_admin(creds.username, creds.password)
     if not admin:
-        raise HTTPException(status_code=401, detail="Invalid faculty / admin username or password.")
-    token = f"faculty_token_{admin['username']}_{database.get_now_ist().strftime('%Y%m%d%H%M%S')}"
+        raise HTTPException(status_code=401, detail="Invalid administrator username or password. (Default: admin / admin123)")
+    token = f"admin_token_{admin['username']}_{database.get_now_ist().strftime('%Y%m%d%H%M%S')}"
+    admin_info = {
+        "id": admin.get("id", 1),
+        "username": admin["username"],
+        "name": admin.get("full_name") or admin["username"],
+        "full_name": admin.get("full_name") or admin["username"],
+        "role": admin.get("role", "admin")
+    }
     return {
         "success": True,
         "token": token,
-        "admin": {
-            "username": admin["username"],
-            "full_name": admin["full_name"],
-            "role": admin["role"]
-        }
+        "admin": admin_info,
+        "user": admin_info
     }
 
 
@@ -344,6 +370,12 @@ async def check_in_attendance(
     arrival_status = sched.get("arrival_status", "ON_TIME")
     minutes_late = sched.get("minutes_late", 0)
 
+    if sched.get("can_check_in") is False:
+        raise HTTPException(
+            status_code=403,
+            detail=sched.get("message") or f"Check-in locked out for {period_name}."
+        )
+
     # 1. Lookup student
     student = database.get_student(student_id)
     if not student:
@@ -363,7 +395,7 @@ async def check_in_attendance(
     )
 
     zone_id = nearest_zone["id"] if nearest_zone else None
-    zone_name = nearest_zone["name"] if nearest_zone else "Campus Classroom"
+    zone_name = nearest_zone["name"] if nearest_zone else "Corporate Office Branch"
     radius_meters = nearest_zone["radius_meters"] if nearest_zone else 100.0
 
     # If no zones exist yet, default to verified
@@ -386,7 +418,7 @@ async def check_in_attendance(
         vector_sample = [round(float(x), 4) for x in live_embedding[:5]]
         enrolled_embedding = face_utils.deserialize_embedding(enrolled_embedding_str)
         face_verified, face_distance, similarity_score = face_utils.compare_embeddings(
-            live_embedding, enrolled_embedding, tolerance=0.60
+            live_embedding, enrolled_embedding, tolerance=0.48
         )
 
     # 5. Factor 4: Anti-Spoofing & Liveness Detection (PAD Protection)
@@ -394,10 +426,9 @@ async def check_in_attendance(
     liveness_verified = liveness_eval["is_live"]
     liveness_score = liveness_eval["liveness_score"]
 
-    # Biometric Ground Truth: If biometric face matches the enrolled student with liveness,
-    # auto-bind and verify their current mobile device
+    # Bind device if first-time check-in without a registered device
     if face_verified and liveness_verified:
-        if not registered_device or registered_device != device_id.strip():
+        if not registered_device:
             database.update_student_device(student_id, device_id.strip())
             registered_device = device_id.strip()
             device_verified = True
@@ -407,7 +438,7 @@ async def check_in_attendance(
     if not device_verified:
         fail_reasons.append(f"Device mismatch (registered '{registered_device}', got '{device_id}')")
     if not location_verified:
-        fail_reasons.append(f"Outside classroom ({distance_to_zone:.1f}m from '{zone_name}', allowed: {radius_meters}m + 150m drift)")
+        fail_reasons.append(f"Outside office boundary ({distance_to_zone:.1f}m from '{zone_name}', allowed: {radius_meters}m + 150m drift)")
     if live_embedding is None:
         fail_reasons.append("No face detected in selfie photo. Please align your face inside the circle.")
     elif not face_verified:
@@ -577,6 +608,549 @@ def export_attendance_csv():
     )
 
 
+# ==========================================
+# Corporate Office Employee Endpoints
+# ==========================================
+
+@app.post("/api/employee/login")
+def employee_login(creds: EmployeeLoginRequest):
+    """Authenticates corporate employee and binds hardware device ID."""
+    emp = database.verify_employee(creds.emp_code, creds.password)
+    if not emp:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Employee Code or password. (Default password: office123)"
+        )
+    if creds.device_id and creds.device_id.strip():
+        database.update_employee_device(emp["emp_code"], creds.device_id.strip())
+        emp["device_id"] = creds.device_id.strip()
+
+    token = f"emp_token_{emp['emp_code']}_{database.get_now_ist().strftime('%Y%m%d%H%M%S')}"
+    return {
+        "success": True,
+        "token": token,
+        "employee": emp
+    }
+
+
+@app.get("/api/employee/status/{emp_code}")
+def get_employee_status(emp_code: str):
+    """Returns real-time daily work hours, in-office status, and break state."""
+    return database.get_employee_daily_status(emp_code)
+
+
+@app.post("/api/employee/register")
+async def register_employee(
+    emp_code: str = Form(...),
+    name: str = Form(...),
+    email: Optional[str] = Form(None),
+    department: str = Form("Engineering"),
+    designation: str = Form("Staff Member"),
+    branch_id: int = Form(1),
+    device_id: str = Form(...),
+    password: Optional[str] = Form("office123"),
+    photo: UploadFile = File(...)
+):
+    """Enrolls corporate employee with 128-d biometric embedding and device binding."""
+    photo_bytes = await photo.read()
+    if not photo_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded photo file is empty.")
+
+    embedding = face_utils.extract_face_embedding_from_bytes(photo_bytes)
+    if embedding is None:
+        raise HTTPException(
+            status_code=422,
+            detail="No human face could be clearly identified. Please take a well-lit front-facing portrait."
+        )
+
+    serialized_embedding = face_utils.serialize_embedding(embedding)
+    database.add_employee(
+        emp_code=emp_code,
+        name=name,
+        email=email,
+        department=department,
+        designation=designation,
+        branch_id=branch_id,
+        device_id=device_id,
+        face_embedding_json=serialized_embedding,
+        password=password
+    )
+
+    return {
+        "success": True,
+        "message": f"Employee '{name}' ({emp_code}) enrolled successfully with 128-d biometric vector signature.",
+        "employee": {
+            "emp_code": emp_code,
+            "name": name,
+            "department": department,
+            "designation": designation
+        }
+    }
+
+
+@app.get("/api/employees")
+def get_all_employees():
+    """Lists all registered corporate employees."""
+    return database.list_employees()
+
+
+@app.get("/api/employees/{emp_code}")
+def get_single_employee(emp_code: str):
+    """Retrieves single employee profile."""
+    emp = database.get_employee(emp_code)
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    emp.pop("face_embedding", None)
+    emp.pop("password_hash", None)
+    return emp
+
+
+@app.put("/api/employees/{emp_code}")
+@app.post("/api/employees/{emp_code}/update")
+async def update_employee_profile(emp_code: str, request: Request):
+    """Updates an employee profile, branch allocation, device binding, and optionally reference biometric vector."""
+    existing = database.get_employee(emp_code)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Employee '{emp_code}' not found.")
+
+    content_type = request.headers.get("content-type", "")
+    name = None
+    email = None
+    department = None
+    designation = None
+    branch_id = None
+    device_id = None
+    password = None
+    face_vector_json = None
+
+    if "application/json" in content_type:
+        data = await request.json()
+        name = data.get("name")
+        email = data.get("email")
+        department = data.get("department")
+        designation = data.get("designation")
+        branch_id = data.get("branch_id")
+        device_id = data.get("device_id")
+        password = data.get("password")
+    else:
+        form = await request.form()
+        name = form.get("name")
+        email = form.get("email")
+        department = form.get("department")
+        designation = form.get("designation")
+        branch_id = form.get("branch_id")
+        device_id = form.get("device_id")
+        password = form.get("password")
+        photo = form.get("photo")
+        if photo and hasattr(photo, "read") and getattr(photo, "filename", None):
+            contents = await photo.read()
+            if len(contents) > 0:
+                emb, err = face_utils.extract_face_embedding(contents)
+                if err or emb is None:
+                    raise HTTPException(status_code=400, detail=f"Biometric extraction failed: {err}")
+                import json
+                face_vector_json = json.dumps(emb)
+
+    updated = database.update_employee(
+        emp_code=emp_code,
+        name=name,
+        email=email,
+        department=department,
+        designation=designation,
+        branch_id=branch_id,
+        device_id=device_id,
+        face_embedding_json=face_vector_json,
+        password=password
+    )
+    if not updated:
+        raise HTTPException(status_code=400, detail="Could not update employee or no changes detected.")
+
+    return {
+        "success": True,
+        "message": f"Employee '{emp_code}' updated successfully.",
+        "biometrics_re_enrolled": face_vector_json is not None
+    }
+
+
+@app.delete("/api/employees/{emp_code}")
+def delete_employee_record(emp_code: str):
+    """Deletes an employee."""
+    deleted = database.delete_employee(emp_code)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    return {"success": True, "message": f"Employee '{emp_code}' removed."}
+
+
+@app.get("/api/office/branches")
+def get_office_branches(only_active: bool = False):
+    """Lists corporate office branches / geofences."""
+    return database.list_office_branches(only_active=only_active)
+
+
+@app.post("/api/office/branches")
+def create_office_branch(b: BranchCreateRequest):
+    """Creates a new office branch with GPS geofence."""
+    branch_id = database.add_office_branch(
+        name=b.name,
+        address=b.address,
+        latitude=b.latitude,
+        longitude=b.longitude,
+        radius_meters=b.radius_meters,
+        office_wifi_bssid=b.office_wifi_bssid,
+        office_public_ip=b.office_public_ip
+    )
+    return {"success": True, "id": branch_id, "message": f"Office Branch '{b.name}' created."}
+
+
+@app.delete("/api/office/branches/{branch_id}")
+def remove_office_branch(branch_id: int):
+    """Deactivates an office branch."""
+    deleted = database.delete_office_branch(branch_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Branch not found.")
+    return {"success": True, "message": f"Branch #{branch_id} deleted."}
+
+
+@app.post("/api/employee/clock-in")
+async def employee_clock_in(
+    emp_code: str = Form(...),
+    device_id: str = Form(...),
+    latitude: float = Form(...),
+    longitude: float = Form(...),
+    is_mock: bool = Form(False),
+    selfie: UploadFile = File(...)
+):
+    """
+    Morning Clock-In with 4-Tier Security Verification:
+    1. Employee profile and hardware device validation
+    2. GPS Office Geofence verification
+    3. 128-d Face Biometric match
+    4. Anti-Spoofing & Liveness detection
+    """
+    emp = database.get_employee(emp_code)
+    if not emp:
+        raise HTTPException(status_code=404, detail=f"Employee '{emp_code}' is not registered.")
+
+    registered_device = emp["device_id"]
+    device_verified = (device_id.strip() == registered_device.strip())
+
+    # Allocated Office Branch Geofence validation
+    assigned_branch_id = emp.get("branch_id")
+    assigned_branch = database.get_office_branch(assigned_branch_id) if assigned_branch_id else None
+
+    if assigned_branch and assigned_branch.get("is_active"):
+        distance_to_branch = geo_utils.haversine_distance_meters(
+            latitude, longitude, assigned_branch["latitude"], assigned_branch["longitude"]
+        )
+        radius_meters = assigned_branch.get("radius_meters", 100.0)
+        location_verified = (distance_to_branch <= (radius_meters + 150.0))
+        branch_name = assigned_branch["name"]
+    else:
+        branches = database.list_office_branches(only_active=True)
+        nearest_branch, distance_to_branch, location_verified = geo_utils.find_nearest_zone(
+            latitude, longitude, branches, drift_tolerance_meters=150.0
+        )
+        branch_name = nearest_branch["name"] if nearest_branch else "Office Branch"
+        radius_meters = nearest_branch["radius_meters"] if nearest_branch else 100.0
+        if not branches:
+            location_verified = True
+
+    # Biometric Face Verification
+    selfie_bytes = await selfie.read()
+    if not selfie_bytes:
+        raise HTTPException(status_code=400, detail="Captured selfie photo is empty.")
+
+    live_embedding = face_utils.extract_face_embedding_from_bytes(selfie_bytes)
+    face_verified = False
+    similarity_score = 0.0
+
+    face_distance = None
+    if live_embedding is not None:
+        enrolled_embedding = face_utils.deserialize_embedding(emp["face_embedding"])
+        face_verified, face_distance, similarity_score = face_utils.compare_embeddings(
+            live_embedding, enrolled_embedding, tolerance=0.48
+        )
+
+    # Anti-Spoofing Liveness check
+    liveness_eval = anti_spoofing.evaluate_liveness(selfie_bytes)
+    liveness_verified = liveness_eval["is_live"]
+    liveness_score = liveness_eval["liveness_score"]
+
+    print(f"📷 [BIOMETRICS] Clock-In: {emp_code} ({emp['name']}) | Face Match: {similarity_score}% (dist: {round(face_distance, 4) if face_distance is not None else 'N/A'}) | Verified: {face_verified} | Liveness: {liveness_score}%")
+
+    if face_verified and liveness_verified:
+        if not registered_device:
+            database.update_employee_device(emp_code, device_id.strip())
+            device_verified = True
+
+    # Security decisions
+    fail_reasons = []
+    if is_mock:
+        fail_reasons.append("Mock GPS detected! Please disable fake location providers.")
+    if not device_verified:
+        fail_reasons.append(f"Device mismatch (registered '{registered_device}', got '{device_id}')")
+    if not location_verified:
+        fail_reasons.append(f"Outside office ({distance_to_branch:.1f}m from '{branch_name}', allowed: {radius_meters}m)")
+    if live_embedding is None:
+        fail_reasons.append("No face detected in selfie. Please align your face inside the circle.")
+    elif not face_verified:
+        fail_reasons.append(f"Biometric mismatch (Confidence: {similarity_score}% - required: >=60%)")
+    if not liveness_verified:
+        fail_reasons.append(f"Spoof detected (Liveness: {liveness_score}%, {liveness_eval['message']})")
+
+    checks_payload = {
+        "device": {
+            "passed": device_verified,
+            "registered_device": registered_device,
+            "provided_device": device_id
+        },
+        "location": {
+            "passed": location_verified,
+            "distance_meters": round(distance_to_branch, 1),
+            "zone_name": branch_name
+        },
+        "face": {
+            "passed": face_verified,
+            "face_detected": live_embedding is not None,
+            "distance": round(face_distance, 4) if face_distance is not None else None,
+            "similarity_score": similarity_score,
+            "threshold": 0.48
+        },
+        "liveness": {
+            "passed": liveness_verified,
+            "score": liveness_score,
+            "message": liveness_eval.get("message")
+        }
+    }
+
+    if fail_reasons:
+        return {
+            "success": False,
+            "status": "REJECTED",
+            "message": "Clock-In rejected: " + "; ".join(fail_reasons),
+            "checks": checks_payload,
+            "diagnostics": {
+                "device_verified": device_verified,
+                "location_verified": location_verified,
+                "face_verified": face_verified,
+                "liveness_verified": liveness_verified,
+                "is_mock": is_mock,
+                "distance_to_branch": distance_to_branch
+            }
+        }
+
+    # Record Clock-In in Database
+    res = database.clock_in_employee(
+        emp_code=emp_code,
+        emp_name=emp["name"],
+        department=emp["department"],
+        latitude=latitude,
+        longitude=longitude,
+        device_id=device_id,
+        zone_name=branch_name,
+        distance_to_zone=distance_to_branch,
+        liveness_score=liveness_score,
+        is_mock=is_mock,
+        similarity_score=similarity_score,
+        face_distance=face_distance
+    )
+    res["checks"] = checks_payload
+    res["diagnostics"] = {
+        "similarity_score": similarity_score,
+        "liveness_score": liveness_score,
+        "distance_meters": round(distance_to_branch, 1),
+        "branch_name": branch_name
+    }
+    return res
+
+
+@app.post("/api/employee/clock-out")
+async def employee_clock_out(
+    emp_code: str = Form(...),
+    device_id: str = Form(...),
+    latitude: float = Form(...),
+    longitude: float = Form(...),
+    is_mock: bool = Form(False),
+    selfie: UploadFile = File(...)
+):
+    """
+    Evening Clock-Out:
+    Verifies face and location, records departure time, and computes total net hours inside office.
+    """
+    emp = database.get_employee(emp_code)
+    if not emp:
+        raise HTTPException(status_code=404, detail=f"Employee '{emp_code}' is not registered.")
+
+    # Allocated Office Branch Geofence validation
+    assigned_branch_id = emp.get("branch_id")
+    assigned_branch = database.get_office_branch(assigned_branch_id) if assigned_branch_id else None
+
+    if assigned_branch and assigned_branch.get("is_active"):
+        distance_to_branch = geo_utils.haversine_distance_meters(
+            latitude, longitude, assigned_branch["latitude"], assigned_branch["longitude"]
+        )
+        radius_meters = assigned_branch.get("radius_meters", 100.0)
+        location_verified = (distance_to_branch <= (radius_meters + 150.0))
+        branch_name = assigned_branch["name"]
+    else:
+        branches = database.list_office_branches(only_active=True)
+        nearest_branch, distance_to_branch, location_verified = geo_utils.find_nearest_zone(
+            latitude, longitude, branches, drift_tolerance_meters=150.0
+        )
+        branch_name = nearest_branch["name"] if nearest_branch else "Office Branch"
+        if not branches:
+            location_verified = True
+
+    selfie_bytes = await selfie.read()
+    if not selfie_bytes:
+        raise HTTPException(status_code=400, detail="Captured selfie photo is empty.")
+
+    live_embedding = face_utils.extract_face_embedding_from_bytes(selfie_bytes)
+    face_verified = False
+    similarity_score = 0.0
+
+    face_distance = None
+    if live_embedding is not None:
+        enrolled_embedding = face_utils.deserialize_embedding(emp["face_embedding"])
+        face_verified, face_distance, similarity_score = face_utils.compare_embeddings(
+            live_embedding, enrolled_embedding, tolerance=0.48
+        )
+
+    liveness_eval = anti_spoofing.evaluate_liveness(selfie_bytes)
+    liveness_score = liveness_eval["liveness_score"]
+
+    print(f"📷 [BIOMETRICS] Clock-Out: {emp_code} ({emp['name']}) | Face Match: {similarity_score}% (dist: {round(face_distance, 4) if face_distance is not None else 'N/A'}) | Verified: {face_verified}")
+
+    if not face_verified:
+        return {
+            "success": False,
+            "status": "REJECTED_FACE",
+            "message": f"Biometric mismatch on Clock-Out (Confidence: {similarity_score}% - required: >=60%). Face verification required to close shift."
+        }
+
+    res = database.clock_out_employee(
+        emp_code=emp_code,
+        latitude=latitude,
+        longitude=longitude,
+        device_id=device_id,
+        zone_name=branch_name,
+        distance_to_zone=distance_to_branch,
+        liveness_score=liveness_score,
+        is_mock=is_mock
+    )
+    return res
+
+
+@app.post("/api/employee/break/start")
+def start_break(req: BreakRequest):
+    """Pauses employee work timer for Lunch or Tea break."""
+    return database.start_employee_break(req.emp_code, req.break_type or "LUNCH")
+
+
+@app.post("/api/employee/break/end")
+def end_break(req: BreakRequest):
+    """Resumes employee work timer and records break duration."""
+    return database.end_employee_break(req.emp_code)
+
+
+@app.get("/api/office/radar")
+def get_office_radar():
+    """Returns live presence board ('Who's in the Office Right Now') for HR Dashboard."""
+    return database.get_today_office_radar()
+
+
+@app.get("/api/office/timesheets")
+def get_office_timesheets(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    emp_code: Optional[str] = Query(None),
+    department: Optional[str] = Query("ALL")
+):
+    """Retrieves detailed daily employee timesheets with gross hours, break time, and net hours."""
+    return database.get_office_timesheets(start_date, end_date, emp_code, department)
+
+
+@app.get("/api/office/export-timesheets-csv")
+def export_office_timesheets_csv(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    department: Optional[str] = Query("ALL")
+):
+    """Exports corporate employee attendance timesheets to CSV formatted for payroll processing."""
+    records = database.get_office_timesheets(start_date=start_date, end_date=end_date, department=department)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header
+    writer.writerow([
+        "Record ID", "Date", "Employee Code", "Employee Name", "Department", "Designation",
+        "Office Branch", "Clock-In Time", "Clock-Out Time", "Break (Mins)", "Net Work Hours",
+        "Arrival Status", "Minutes Late", "Is Overtime", "Overtime Hours", "Status", "Audit Notes"
+    ])
+
+    for r in records:
+        writer.writerow([
+            r.get("id"), r.get("date"), r.get("emp_code"), r.get("emp_name"),
+            r.get("department"), r.get("designation"), r.get("branch_name") or r.get("clock_in_zone_name"),
+            r.get("clock_in_time"), r.get("clock_out_time"), r.get("total_break_minutes", 0),
+            r.get("net_work_hours", 0.0), r.get("arrival_status"), r.get("minutes_late", 0),
+            "Yes" if r.get("is_overtime") else "No", r.get("overtime_hours", 0.0),
+            r.get("status"), r.get("audit_notes")
+        ])
+
+    output.seek(0)
+    filename = f"office_timesheets_{database.get_now_ist().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.get("/api/office/stats")
+def get_office_stats():
+    """Returns real-time corporate office metrics for HR Dashboard."""
+    return database.get_office_stats()
+
+
+@app.post("/api/office/reset-system")
+def reset_system():
+    """Wipes all old accounts, attendance logs, and break records for a clean fresh start."""
+    return database.reset_system_to_fresh()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+
+@app.delete("/api/office/timesheets/{timesheet_id}")
+def delete_timesheet_endpoint(timesheet_id: int):
+    """Deletes a single timesheet record (Admin only)."""
+    deleted = database.delete_timesheet_record(timesheet_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Timesheet record not found.")
+    return {"success": True, "message": f"Timesheet record #{timesheet_id} deleted."}
+
+
+@app.delete("/api/attendance/records/{record_id}")
+def delete_audit_record_endpoint(record_id: int):
+    """Deletes a single audit log record (Admin only)."""
+    deleted = database.delete_attendance_audit_record(record_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Audit record not found.")
+    return {"success": True, "message": f"Audit record #{record_id} deleted."}
+
+
+@app.post("/api/office/reset-employee-data/{emp_code}")
+def reset_employee_data_endpoint(emp_code: str):
+    """Resets all attendance records and punches for a single employee (Admin only)."""
+    emp = database.get_employee(emp_code)
+    if not emp:
+        raise HTTPException(status_code=404, detail=f"Employee '{emp_code}' not found.")
+    database.reset_employee_attendance(emp_code)
+    return {
+        "success": True,
+        "message": f"All attendance punches and timesheets reset for employee '{emp.get('name') or emp_code}'."
+    }

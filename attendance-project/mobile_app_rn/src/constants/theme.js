@@ -11,6 +11,6 @@ export const COLORS = {
   accentAmber: '#F59E0B',
   textMain: '#F8FAFC',
   textMuted: '#94A3B8',
-  textDim: '#64748B',
+  textDim: '#8FA0B5',
   border: 'rgba(255, 255, 255, 0.08)',
 };

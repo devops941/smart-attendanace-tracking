@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, Modal, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 
 export default function ResultModal({ visible, result, onClose }) {
@@ -10,9 +11,12 @@ export default function ResultModal({ visible, result, onClose }) {
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
-          <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 6 }}>
-            {isPass ? '✅' : '❌'}
-          </Text>
+          <Ionicons
+            name={isPass ? 'checkmark-circle' : 'close-circle'}
+            size={52}
+            color={isPass ? COLORS.accentEmerald : COLORS.accentRose}
+            style={{ alignSelf: 'center', marginBottom: 8 }}
+          />
           <Text style={[styles.modalTitle, isPass ? { color: COLORS.accentEmerald } : { color: COLORS.accentRose }]}>
             {isPass ? 'ATTENDANCE CONFIRMED' : 'ATTENDANCE REJECTED'}
           </Text>
@@ -22,12 +26,18 @@ export default function ResultModal({ visible, result, onClose }) {
           {result.checks && (
             <View style={styles.factorsList}>
               <View style={[styles.factorItem, result.checks.device?.passed ? styles.factorPass : styles.factorFail]}>
-                <Text style={styles.factorLabel}>📱 Device ID Binding:</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="phone-portrait-outline" size={14} color={COLORS.textMain} />
+                  <Text style={styles.factorLabel}>Device ID Binding:</Text>
+                </View>
                 <Text style={styles.factorVal}>{result.checks.device?.passed ? 'PASSED' : 'REJECTED'}</Text>
               </View>
 
               <View style={[styles.factorItem, result.checks.location?.passed ? styles.factorPass : styles.factorFail]}>
-                <Text style={styles.factorLabel}>📍 GPS Geofence Proximity:</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="location-outline" size={14} color={COLORS.textMain} />
+                  <Text style={styles.factorLabel}>GPS Geofence Proximity:</Text>
+                </View>
                 <Text style={styles.factorVal}>
                   {result.checks.location?.passed
                     ? `PASSED (${result.checks.location.distance_meters}m)`
@@ -36,20 +46,26 @@ export default function ResultModal({ visible, result, onClose }) {
               </View>
 
               <View style={[styles.factorItem, result.checks.face?.passed ? styles.factorPass : styles.factorFail]}>
-                <Text style={styles.factorLabel}>👤 128-d Facial Biometrics:</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="scan-outline" size={14} color={COLORS.textMain} />
+                  <Text style={styles.factorLabel}>128-d Facial Biometrics:</Text>
+                </View>
                 <Text style={styles.factorVal}>
                   {result.checks.face?.passed
                     ? `MATCH (${result.checks.face.similarity_score}%)`
-                    : 'NO MATCH'}
+                    : `MISMATCH (${result.checks.face?.similarity_score ?? 0}%)`}
                 </Text>
               </View>
 
               <View style={[styles.factorItem, result.checks.liveness?.passed ? styles.factorPass : styles.factorFail]}>
-                <Text style={styles.factorLabel}>🛡️ Presentation Attack Defense:</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.textMain} />
+                  <Text style={styles.factorLabel}>Anti-Spoofing Defense:</Text>
+                </View>
                 <Text style={styles.factorVal}>
                   {result.checks.liveness?.passed
                     ? `LIVE (${result.checks.liveness.score}%)`
-                    : `SPOOF FLAGGED`}
+                    : 'SPOOF FLAGGED'}
                 </Text>
               </View>
             </View>
@@ -86,6 +102,7 @@ const styles = StyleSheet.create({
   factorItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
@@ -98,13 +115,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(244,63,94,0.1)',
     borderColor: 'rgba(244,63,94,0.25)',
   },
-  factorLabel: { color: COLORS.textMuted, fontSize: 12 },
-  factorVal: { color: COLORS.textMain, fontSize: 12, fontWeight: 'bold' },
+  factorLabel: { color: COLORS.textMain, fontSize: 12, fontWeight: 'bold' },
+  factorVal: { color: COLORS.textMain, fontSize: 11.5, fontWeight: 'bold' },
   modalCloseBtn: {
     backgroundColor: COLORS.primary,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  modalCloseText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  modalCloseText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
 });

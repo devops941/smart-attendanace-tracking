@@ -18,10 +18,38 @@ import numpy as np
 try:
     import face_recognition
 except ImportError:
-    print("\n[ERROR] 'face_recognition' library is not installed.")
-    print("Please activate your virtual environment and run: pip install -r requirements.txt")
-    print("Tip for Windows: See Phase 1 common errors guide if dlib installation requires C++ tools.\n")
-    sys.exit(1)
+    try:
+        import dlib
+        import face_recognition_models
+        from PIL import Image, ImageOps
+
+        class _DirectDlibFaceEngine:
+            def __init__(self):
+                self._detector = dlib.get_frontal_face_detector()
+                self._sp = dlib.shape_predictor(face_recognition_models.pose_predictor_model_location())
+                self._fe = dlib.face_recognition_model_v1(face_recognition_models.face_recognition_model_location())
+
+            def face_locations(self, img, number_of_times_to_upsample=1):
+                rects = self._detector(img, number_of_times_to_upsample)
+                return [(r.top(), r.right(), r.bottom(), r.left()) for r in rects]
+
+            def face_encodings(self, img, known_face_locations=None, num_jitters=1):
+                if known_face_locations is None:
+                    raw_locations = self._detector(img, 1)
+                else:
+                    raw_locations = [dlib.rectangle(loc[3], loc[0], loc[1], loc[2]) for loc in known_face_locations]
+                landmarks = [self._sp(img, r) for r in raw_locations]
+                return [np.array(self._fe.compute_face_descriptor(img, l, num_jitters), dtype=np.float64) for l in landmarks]
+
+            def load_image_file(self, file_path_or_stream):
+                im = Image.open(file_path_or_stream)
+                im = ImageOps.exif_transpose(im)
+                return np.array(im.convert("RGB"))
+
+        face_recognition = _DirectDlibFaceEngine()
+    except Exception as _e:
+        print(f"\n[ERROR] Facial biometrics library error: {_e}\n")
+        sys.exit(1)
 
 
 def get_face_embedding(image_path: str):
@@ -55,16 +83,16 @@ def get_face_embedding(image_path: str):
     return face_encodings[0]
 
 
-def compare_two_faces(image_path_1: str, image_path_2: str, tolerance: float = 0.6):
+def compare_two_faces(image_path_1: str, image_path_2: str, tolerance: float = 0.48):
     """
     Compares two face photos using their mathematical embeddings.
     
     Args:
         image_path_1: Path to enrolled/reference photo.
         image_path_2: Path to live/verification photo.
-        tolerance: Distance threshold (default 0.6).
-                   Lower value = more strict (fewer false positives).
-                   Higher value = more lenient (fewer false rejections).
+        tolerance: Distance threshold (default 0.48 for strict biometric security).
+                   Lower value (<= 0.48) prevents proxy attendance by other people.
+                   Higher value (>= 0.60) is overly lenient and allows false positives.
     """
     print("=" * 60)
     print(" SMART ATTENDANCE - FACE COMPARISON VERIFICATION ")

@@ -192,6 +192,12 @@ def evaluate_liveness(image_bytes: bytes) -> Dict[str, Any]:
             "warnings": ["Image decoding failure"]
         }
 
+    # Downscale for instant real-time verification (prevents mobile HTTP timeout)
+    h, w = bgr_img.shape[:2]
+    if max(h, w) > 800:
+        scale = 800.0 / max(h, w)
+        bgr_img = cv2.resize(bgr_img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
     # Convert to RGB for face_recognition
     rgb_img = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
 
@@ -290,6 +296,8 @@ def evaluate_liveness(image_bytes: bytes) -> Dict[str, Any]:
     )
 
     # Additional penalty if critical spoof indicators triggered
+    if is_blurry and lap_var < 18.0:
+        composite_score = min(composite_score, 40.0)
     if has_glare and is_blurry:
         composite_score = min(composite_score, 45.0)
     if is_moire and unnatural_tint:
