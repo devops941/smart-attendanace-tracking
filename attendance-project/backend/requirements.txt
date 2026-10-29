@@ -1,3 +1,6 @@
+# Packaging & resource resolution for face_recognition_models
+setuptools
+
 # Prebuilt dlib binary and models (avoids slow C++ compilation and out-of-memory timeout)
 dlib-bin
 face_recognition_models

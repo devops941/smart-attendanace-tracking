@@ -1,3 +1,24 @@
+# Ensure pkg_resources compatibility for face_recognition_models across all environments
+import sys
+import os
+if 'pkg_resources' not in sys.modules:
+    try:
+        import pkg_resources
+    except ImportError:
+        import importlib.util
+        class _PkgResourcesShim:
+            @staticmethod
+            def resource_filename(package_name, resource_name):
+                try:
+                    spec = importlib.util.find_spec(package_name)
+                    if spec and spec.origin:
+                        base = os.path.dirname(spec.origin)
+                        return os.path.join(base, resource_name)
+                except Exception:
+                    pass
+                return os.path.abspath(resource_name)
+        sys.modules['pkg_resources'] = _PkgResourcesShim
+
 """
 Phase 1: Face Comparison Script
 Smart Attendance App with Face Recognition and GPS
