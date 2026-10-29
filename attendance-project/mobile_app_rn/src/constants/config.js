@@ -6,10 +6,14 @@ export const PREF_AUTH_TOKEN = 'smart_attendance_rn_auth_token';
 export const PREF_USER_ROLE = 'smart_attendance_rn_user_role';
 export const PREF_USER_INFO = 'smart_attendance_rn_user_info';
 
-// Default backend URL (Local FastAPI Server)
-export const DEFAULT_URL = Platform.OS === 'web' ? 'http://localhost:8000' : 'http://192.168.1.30:8000';
+// Production Live Cloud Backend on Render
+export const CLOUD_URL = 'https://smart-attendance-api-zaoh.onrender.com';
+
+// Default backend URL (Live Cloud Server with fallback to localhost on web)
+export const DEFAULT_URL = Platform.OS === 'web' ? 'http://localhost:8000' : CLOUD_URL;
 
 export const IP_PRESETS = [
+  { label: 'Cloud Server (Live HTTPS)', icon: 'cloud-outline', url: CLOUD_URL, color: '#10B981' },
   { label: 'Local PC Wi-Fi (192.168.1.30)', icon: 'wifi-outline', url: 'http://192.168.1.30:8000', color: '#6366F1' },
   { label: 'Localhost (Web Browser)', icon: 'laptop-outline', url: 'http://localhost:8000', color: '#38BDF8' },
   { label: 'Android Emulator (10.0.2.2)', icon: 'phone-portrait-outline', url: 'http://10.0.2.2:8000', color: '#94A3B8' },

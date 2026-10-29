@@ -21,6 +21,7 @@
     },
     "android": {
       "package": "com.smartattendance.app",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#090D16"

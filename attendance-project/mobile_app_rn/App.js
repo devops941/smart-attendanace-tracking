@@ -99,7 +99,7 @@ export default function App() {
     (async () => {
       try {
         // One-time auto-wipe of legacy student cache from phone AsyncStorage
-        const FRESH_FLAG = 'smart_attendance_office_fresh_2026';
+        const FRESH_FLAG = 'smart_attendance_office_fresh_cloud_v2';
         const hasBeenCleaned = await AsyncStorage.getItem(FRESH_FLAG);
         if (hasBeenCleaned !== 'true') {
           await AsyncStorage.clear();
@@ -109,7 +109,7 @@ export default function App() {
 
         let urlToUse = DEFAULT_URL;
         const storedUrl = await AsyncStorage.getItem(PREF_SERVER_URL);
-        if (storedUrl && !storedUrl.includes('onrender.com')) {
+        if (storedUrl && !storedUrl.includes('192.168.1.30')) {
           setServerUrl(storedUrl);
           urlToUse = storedUrl;
         } else {
